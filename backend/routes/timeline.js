@@ -50,7 +50,10 @@ router.get('/', auth, timelineController.getPosts);
 // @route   POST api/timeline
 // @desc    Criar uma publicação
 // @access  Private
-router.post('/', auth, upload.array('attachments', 5), timelineController.createPost);
+router.post('/', auth, upload.array('attachments', 5), (req, res) => {
+  console.log('Requisição POST /api/timeline recebida:', { body: req.body, files: req.files });
+  timelineController.createPost(req, res);
+});
 
 // @route   POST api/timeline/comment/:id
 // @desc    Adicionar comentário a uma publicação
