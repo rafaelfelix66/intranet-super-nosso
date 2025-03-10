@@ -1,5 +1,4 @@
-
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { 
@@ -146,7 +145,7 @@ const samplePosts: Post[] = [
 ];
 
 const Timeline = () => {
-  const [posts, setPosts] = useState<Post[]>(samplePosts);
+  const [posts, setPosts] = useState<Post[]>(samplePosts); // Inicialmente com dados locais
   const [commentInput, setCommentInput] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("todos");
   const [newPostDialog, setNewPostDialog] = useState(false);
@@ -161,6 +160,85 @@ const Timeline = () => {
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const token = localStorage.getItem('token'); // Supondo que o token está salvo
+
+  // Carregar posts do backend ao montar o componente
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:3000/api/timeline', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        setPosts(data); // Substitui os dados locais pelos do backend
+      } catch (error) {
+        console.error('Erro ao carregar posts:', error);
+        toast({ title: "Erro", description: "Não foi possível carregar os posts.", variant: "destructive" });
+      }
+    };
+    fetchPosts();
+  }, [token]);
+
+  // Criar novo post com envio ao backend
+  const createNewPost = async () => {
+    if (!newPostContent.trim() && !showEventForm) {
+      toast({
+        title: "Conteúdo vazio",
+        description: "Adicione um texto ou um evento para publicar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
+      toast({
+        title: "Detalhes do evento incompletos",
+        description: "Preencha todos os campos do evento.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('text', newPostContent);
+    selectedImages.forEach((image, index) => formData.append(`attachments`, image));
+    if (selectedVideo) formData.append('attachments', selectedVideo);
+
+    const eventDetails = showEventForm && eventDate ? {
+      title: eventTitle,
+      date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
+      location: eventLocation
+    } : undefined;
+
+    console.log('Enviando post para:', 'http://127.0.0.1:3000/api/timeline', { text: newPostContent, event: eventDetails, images: selectedImages.length, video: !!selectedVideo });
+    try {
+      const response = await fetch('http://127.0.0.1:3000/api/timeline', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await response.json();
+      console.log('Resposta do servidor:', data);
+      setPosts([data, ...posts]); // Adiciona o novo post retornado pelo backend
+      toast({ title: "Publicação criada", description: "Sua publicação foi compartilhada com sucesso!" });
+    } catch (error) {
+      console.error('Erro ao enviar post:', error);
+      toast({ title: "Erro", description: "Não foi possível criar a publicação.", variant: "destructive" });
+    }
+    
+    // Resetar formulário
+    setNewPostContent("");
+    setSelectedImages([]);
+    setPreviewImages([]);
+    setSelectedVideo(null);
+    setPreviewVideo(null);
+    setShowEventForm(false);
+    setEventTitle("");
+    setEventLocation("");
+    setEventDate(undefined);
+    setNewPostDialog(false);
+  };
   
   const handleLike = (postId: string) => {
     setPosts(posts.map(post => {
@@ -174,6 +252,7 @@ const Timeline = () => {
       }
       return post;
     }));
+    // TODO: Enviar ao backend (PUT /api/timeline/:id/like)
   };
   
   const handleComment = (postId: string) => {
@@ -200,6 +279,7 @@ const Timeline = () => {
       ...commentInput,
       [postId]: ''
     });
+    // TODO: Enviar ao backend (POST /api/timeline/:id/comment)
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,71 +344,6 @@ const Timeline = () => {
       setEventLocation("");
       setEventDate(undefined);
     }
-  };
-  
-  const createNewPost = () => {
-    if (!newPostContent.trim() && !showEventForm) {
-      toast({
-        title: "Conteúdo vazio",
-        description: "Adicione um texto ou um evento para publicar.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
-      toast({
-        title: "Detalhes do evento incompletos",
-        description: "Preencha todos os campos do evento.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const eventDetails = showEventForm && eventDate ? {
-      title: eventTitle,
-      date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
-      location: eventLocation
-    } : undefined;
-    
-    // Create image URLs (in a real app, these would be uploaded to a server)
-    const imageUrls = previewImages.length > 0 ? [...previewImages] : undefined;
-    
-    // Create video URL (in a real app, this would be uploaded to a server)
-    const videoUrl = previewVideo || undefined;
-    
-    const newPost: Post = {
-      id: `p${Date.now()}`,
-      user: { name: 'Você', initials: 'VC' },
-      content: newPostContent,
-      images: imageUrls,
-      video: videoUrl,
-      timestamp: 'agora',
-      likes: 0,
-      comments: [],
-      liked: false,
-      event: eventDetails
-    };
-    
-    setPosts([newPost, ...posts]);
-    
-    // Reset all form fields
-    setNewPostContent("");
-    setSelectedImages([]);
-    setPreviewImages([]);
-    setSelectedVideo(null);
-    setPreviewVideo(null);
-    setShowEventForm(false);
-    setEventTitle("");
-    setEventLocation("");
-    setEventDate(undefined);
-    
-    setNewPostDialog(false);
-    
-    toast({
-      title: "Publicação criada",
-      description: "Sua publicação foi compartilhada com sucesso!"
-    });
   };
   
   const filteredPosts = activeTab === "todos" 
@@ -558,7 +573,6 @@ const Timeline = () => {
                 <Button 
                   variant="outline" 
                   onClick={() => {
-                    // Clear all form data
                     setNewPostContent("");
                     setSelectedImages([]);
                     setPreviewImages([]);
