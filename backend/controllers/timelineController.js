@@ -18,32 +18,41 @@ const getPosts = async (req, res) => {
 // Criar uma publicação
 const createPost = async (req, res) => {
   try {
-    const { text } = req.body;
-    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files });
-    if (!text) {
-      console.log('Texto vazio, rejeitando post');
-      return res.status(400).json({ mensagem: 'O texto é obrigatório' });
+    const { text, eventData } = req.body;
+    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files, eventData });
+    
+    if (!text && !eventData) {
+      console.log('Texto vazio e sem dados de evento, rejeitando post');
+      return res.status(400).json({ mensagem: 'O texto ou dados de evento são obrigatórios' });
     }
+    
     const attachments = req.files ? req.files.map(file => ({
       type: file.path,
       contentType: file.mimetype
     })) : [];
-    const newPost = new Post({
-      text,
-      user: req.usuario.id,
-      attachments
-    });
+    
+    // Processar dados do evento se forem fornecidos
+    let parsedEventData = null;
+    if (eventData) {
+      try {
+        parsedEventData = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
+      } catch (error) {
+        console.error('Erro ao analisar dados do evento:', error);
+      }
+    }
+    
     const post = await newPost.save();
     console.log('Post salvo com sucesso:', post);
+    
     const populatedPost = await Post.findById(post._id)
       .populate('user', ['nome']);
+      
     res.status(201).json(populatedPost);
   } catch (err) {
     console.error('Erro ao criar post:', err.message);
     res.status(500).json({ mensagem: 'Erro ao criar post', erro: err.message });
   }
 };
-
 // Adicionar comentário
 const addComment = async (req, res) => {
   try {
@@ -53,7 +62,7 @@ const addComment = async (req, res) => {
     }
     const newComment = {
       text: req.body.text,
-      user: req.usuario.id // Ajustado
+      user: req.usuario.id
     };
     post.comments.unshift(newComment);
     await post.save();

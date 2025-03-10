@@ -15,6 +15,9 @@ const PostSchema = new mongoose.Schema({
     type: String, // caminho do arquivo
     contentType: String // tipo de conteúdo (imagem, vídeo, etc.)
   }],
+  eventData: {
+    type: mongoose.Schema.Types.Mixed // Para armazenar dados de evento (título, data, local)
+  },
   likes: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

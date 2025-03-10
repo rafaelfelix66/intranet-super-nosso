@@ -1,3 +1,140 @@
+<div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
+                      <div>{post.likes} curtidas</div>
+                      <div>{post.comments.length} comentários</div>
+                    </div>
+                  </CardContent>
+                  
+                  <CardFooter className="flex flex-col space-y-4">
+                    <div className="flex justify-around w-full border-y py-1">
+                      <Button 
+                        variant="ghost" 
+                        className={cn(
+                          "flex-1", 
+                          post.liked ? "text-[#e60909]" : ""
+                        )}
+                        onClick={() => handleLike(post.id)}
+                      >
+                        <Heart className={cn("mr-1 h-4 w-4", post.liked ? "fill-[#e60909]" : "")} />
+                        Curtir
+                      </Button>
+                      <Button variant="ghost" className="flex-1">
+                        <MessageCircle className="mr-1 h-4 w-4" />
+                        Comentar
+                      </Button>
+                    </div>
+                    
+                    {post.comments.length > 0 && (
+                      <div className="space-y-3 w-full">
+                        {post.comments.map((comment) => (
+                          <div key={comment.id} className="flex space-x-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={comment.user.avatar} />
+                              <AvatarFallback className="bg-[#e60909] text-white text-xs">
+                                {comment.user.initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 px-3">
+                                <div className="font-medium text-sm">{comment.user.name}</div>
+                                <div className="text-sm">{comment.content}</div>
+                              </div>
+                              <div className="flex text-xs text-gray-500 mt-1 ml-2 space-x-3">
+                                <span>{comment.timestamp}</span>
+                                <button className="hover:text-[#e60909]">Curtir</button>
+                                <button className="hover:text-[#e60909]">Responder</button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="flex space-x-3 w-full">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-[#e60909] text-white text-xs">
+                          VC
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 flex">
+                        <Input 
+                          placeholder="Escreva um comentário..." 
+                          className="rounded-r-none focus-visible:ring-0 border-r-0"
+                          value={commentInput[post.id] || ''}
+                          onChange={(e) => setCommentInput({
+                            ...commentInput,
+                            [post.id]: e.target.value
+                          })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleComment(post.id);
+                            }
+                          }}
+                        />
+                        <Button 
+                          className="rounded-l-none bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                          onClick={() => handleComment(post.id)}
+                          disabled={!commentInput[post.id]?.trim()}
+                        >
+                          Enviar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-4 inline-block">
+                  {activeTab === "fotos" ? (
+                    <ImageIcon className="h-10 w-10 text-gray-400" />
+                  ) : activeTab === "videos" ? (
+                    <Film className="h-10 w-10 text-gray-400" />
+                  ) : activeTab === "eventos" ? (
+                    <Calendar className="h-10 w-10 text-gray-400" />
+                  ) : (
+                    <MessageCircle className="h-10 w-10 text-gray-400" />
+                  )}
+                </div>
+                <h3 className="text-lg font-medium mt-4">Nenhuma publicação encontrada</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {activeTab === "fotos" 
+                    ? "Ainda não há fotos compartilhadas" 
+                    : activeTab === "videos"
+                      ? "Ainda não há vídeos compartilhados"
+                      : activeTab === "eventos"
+                        ? "Ainda não há eventos compartilhados"
+                        : "Comece compartilhando algo com sua equipe"}
+                </p>
+                <Button 
+                  className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                  onClick={() => setNewPostDialog(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Publicação
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="fotos" className="space-y-6">
+            {/* Conteúdo filtrado já renderizado na aba "todos" */}
+          </TabsContent>
+          
+          <TabsContent value="videos" className="space-y-6">
+            {/* Conteúdo filtrado já renderizado na aba "todos" */}
+          </TabsContent>
+          
+          <TabsContent value="eventos" className="space-y-6">
+            {/* Conteúdo filtrado já renderizado na aba "todos" */}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </Layout>
+  );
+};
+
+export default Timeline;
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
@@ -79,73 +216,13 @@ interface Post {
   };
 }
 
-const samplePosts: Post[] = [
-  {
-    id: '1',
-    user: { name: 'Marketing Super Nosso', initials: 'MK' },
-    content: 'A inauguração da nossa nova loja foi um sucesso! Agradecemos a todos que participaram deste momento especial.',
-    images: [
-      'https://images.unsplash.com/photo-1519389950473-47ba0277781c',
-      'https://images.unsplash.com/photo-1605810230434-7631ac76ec81'
-    ],
-    timestamp: '2 horas atrás',
-    likes: 24,
-    comments: [
-      {
-        id: 'c1',
-        user: { name: 'Ana Silva', initials: 'AS' },
-        content: 'Parabéns pela iniciativa! A loja ficou incrível.',
-        timestamp: '1 hora atrás'
-      },
-      {
-        id: 'c2',
-        user: { name: 'Carlos Oliveira', initials: 'CO' },
-        content: 'Muito bom! Quando será a próxima inauguração?',
-        timestamp: '30 minutos atrás'
-      }
-    ],
-    liked: false,
-    event: {
-      title: 'Inauguração Loja Pampulha',
-      date: '10 de Junho, 2023',
-      location: 'Av. Presidente Carlos Luz, 3001 - Pampulha'
-    }
-  },
-  {
-    id: '2',
-    user: { name: 'Recursos Humanos', initials: 'RH' },
-    content: 'Convidamos todos os funcionários para o treinamento anual de capacitação que ocorrerá no próximo mês. Será uma oportunidade para aprimorar habilidades e conhecer novas técnicas.',
-    timestamp: '1 dia atrás',
-    likes: 15,
-    comments: [
-      {
-        id: 'c3',
-        user: { name: 'Mariana Costa', initials: 'MC' },
-        content: 'Estou ansiosa para participar!',
-        timestamp: '20 horas atrás'
-      }
-    ],
-    liked: true,
-    event: {
-      title: 'Treinamento Anual de Capacitação',
-      date: '15 de Julho, 2023',
-      location: 'Centro de Treinamento - Unidade Centro'
-    }
-  },
-  {
-    id: '3',
-    user: { name: 'Operações', initials: 'OP' },
-    content: 'Assista ao vídeo sobre os novos procedimentos de estoque que implementamos este mês:',
-    video: 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4',
-    timestamp: '3 dias atrás',
-    likes: 32,
-    comments: [],
-    liked: false
-  }
-];
+// Criamos dados iniciais vazios em vez de usar samplePosts
+const initialPosts: Post[] = [];
+
+const API_URL = "http://127.0.0.1:3000/api";
 
 const Timeline = () => {
-  const [posts, setPosts] = useState<Post[]>(samplePosts); // Inicialmente com dados locais
+  const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [commentInput, setCommentInput] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("todos");
   const [newPostDialog, setNewPostDialog] = useState(false);
@@ -158,74 +235,274 @@ const Timeline = () => {
   const [eventTitle, setEventTitle] = useState("");
   const [eventLocation, setEventLocation] = useState("");
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const token = localStorage.getItem('token'); // Supondo que o token está salvo
+  const token = localStorage.getItem('token');
 
   // Carregar posts do backend ao montar o componente
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:3000/api/timeline', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        setPosts(data); // Substitui os dados locais pelos do backend
-      } catch (error) {
-        console.error('Erro ao carregar posts:', error);
-        toast({ title: "Erro", description: "Não foi possível carregar os posts.", variant: "destructive" });
+useEffect(() => {
+  const fetchPosts = async () => {
+    if (!token) {
+      console.error('Token não encontrado');
+      navigate('/login');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Tentando buscar posts do backend...');
+      
+      const response = await fetch(`${API_URL}/timeline`, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('Status da resposta:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao carregar posts: ${response.status}`);
       }
-    };
-    fetchPosts();
-  }, [token]);
+      
+      const data = await response.json();
+      console.log('Posts recebidos do backend:', data);
+      
+      if (Array.isArray(data)) {
+        // Converter para o formato do frontend
+        const formattedPosts: Post[] = data.map(post => ({
+          id: post._id,
+          user: {
+            name: post.user?.nome || 'Usuário',
+            initials: getInitials(post.user?.nome || 'Usuário')
+          },
+          content: post.text,
+          timestamp: formatTimestamp(post.createdAt),
+          likes: post.likes?.length || 0,
+          comments: (post.comments || []).map(comment => ({
+            id: comment._id,
+            user: {
+              name: comment.user?.nome || 'Usuário',
+              initials: getInitials(comment.user?.nome || 'Usuário')
+            },
+            content: comment.text,
+            timestamp: formatTimestamp(comment.createdAt)
+          })),
+          liked: post.likes?.includes(localStorage.getItem('userId')) || false
+        }));
+        
+        // Processar anexos
+        formattedPosts.forEach(post => {
+          const postData = data.find(p => p._id === post.id);
+          if (postData?.attachments && postData.attachments.length > 0) {
+            // Imagens
+            const imageAttachments = postData.attachments.filter(att => 
+              att.contentType && att.contentType.startsWith('image/'));
+            if (imageAttachments.length > 0) {
+              post.images = imageAttachments.map(img => img.type);
+            }
+            
+            // Vídeos
+            const videoAttachment = postData.attachments.find(att => 
+              att.contentType && att.contentType.startsWith('video/'));
+            if (videoAttachment) {
+              post.video = videoAttachment.type;
+            }
+          }
+          
+          // Evento
+          if (postData.eventData) {
+            try {
+              post.event = typeof postData.eventData === 'string' 
+                ? JSON.parse(postData.eventData)
+                : postData.eventData;
+            } catch (e) {
+              console.error('Erro ao processar dados do evento:', e);
+            }
+          }
+        });
+        
+        setPosts(formattedPosts);
+        console.log('Posts formatados:', formattedPosts);
+      } else {
+        console.error('Resposta do backend não é um array:', data);
+        setPosts([]);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar posts:', error);
+      setError('Não foi possível carregar os posts');
+      toast({ 
+        title: "Erro", 
+        description: "Não foi possível carregar os posts.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  fetchPosts();
+}, [token, navigate]);
+  
+  // Formatar timestamp para exibição
+  const formatTimestamp = (date: string | Date) => {
+    if (!date) return 'algum momento';
+    
+    const now = new Date();
+    const postDate = new Date(date);
+    const diff = Math.floor((now.getTime() - postDate.getTime()) / 1000); // diferença em segundos
+    
+    if (diff < 60) {
+      return 'agora';
+    } else if (diff < 3600) {
+      const minutes = Math.floor(diff / 60);
+      return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'} atrás`;
+    } else if (diff < 86400) {
+      const hours = Math.floor(diff / 3600);
+      return `${hours} ${hours === 1 ? 'hora' : 'horas'} atrás`;
+    } else if (diff < 604800) {
+      const days = Math.floor(diff / 86400);
+      return `${days} ${days === 1 ? 'dia' : 'dias'} atrás`;
+    } else {
+      // Formatar data completa para posts mais antigos
+      return new Date(date).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
+  };
 
   // Criar novo post com envio ao backend
-  const createNewPost = async () => {
-    if (!newPostContent.trim() && !showEventForm) {
-      toast({
-        title: "Conteúdo vazio",
-        description: "Adicione um texto ou um evento para publicar.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
-      toast({
-        title: "Detalhes do evento incompletos",
-        description: "Preencha todos os campos do evento.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
+const createNewPost = async () => {
+  if (!token) {
+    console.error('Token não encontrado');
+    navigate('/login');
+    return;
+  }
+  
+  if (!newPostContent.trim() && !showEventForm) {
+    toast({
+      title: "Conteúdo vazio",
+      description: "Adicione um texto ou um evento para publicar.",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
+    toast({
+      title: "Detalhes do evento incompletos",
+      description: "Preencha todos os campos do evento.",
+      variant: "destructive"
+    });
+    return;
+  }
+  
+  try {
+    // Criar FormData para envio de arquivos
     const formData = new FormData();
     formData.append('text', newPostContent);
-    selectedImages.forEach((image, index) => formData.append(`attachments`, image));
-    if (selectedVideo) formData.append('attachments', selectedVideo);
-
-    const eventDetails = showEventForm && eventDate ? {
-      title: eventTitle,
-      date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
-      location: eventLocation
-    } : undefined;
-
-    console.log('Enviando post para:', 'http://127.0.0.1:3000/api/timeline', { text: newPostContent, event: eventDetails, images: selectedImages.length, video: !!selectedVideo });
-    try {
-      const response = await fetch('http://127.0.0.1:3000/api/timeline', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-      const data = await response.json();
-      console.log('Resposta do servidor:', data);
-      setPosts([data, ...posts]); // Adiciona o novo post retornado pelo backend
-      toast({ title: "Publicação criada", description: "Sua publicação foi compartilhada com sucesso!" });
-    } catch (error) {
-      console.error('Erro ao enviar post:', error);
-      toast({ title: "Erro", description: "Não foi possível criar a publicação.", variant: "destructive" });
+    
+    // Adicionar arquivos se existirem
+    selectedImages.forEach(image => {
+      formData.append('attachments', image);
+    });
+    
+    if (selectedVideo) {
+      formData.append('attachments', selectedVideo);
     }
+    
+    // Adicionar dados do evento se existirem
+    if (showEventForm && eventDate) {
+      const eventData = {
+        title: eventTitle,
+        date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
+        location: eventLocation
+      };
+      formData.append('eventData', JSON.stringify(eventData));
+    }
+    
+    console.log('Enviando post para:', `${API_URL}/timeline`);
+    
+    // Enviar para o backend
+    const response = await fetch(`${API_URL}/timeline`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Erro da resposta:', errorData);
+      throw new Error(errorData.mensagem || `Erro ${response.status}`);
+    }
+    
+    const postData = await response.json();
+    console.log('Resposta do servidor após criar post:', postData);
+    
+    // Converter o post retornado para o formato do frontend
+    const newPost: Post = {
+      id: postData._id,
+      user: {
+        name: postData.user?.nome || 'Usuário',
+        initials: getInitials(postData.user?.nome || 'Usuário')
+      },
+      content: postData.text,
+      timestamp: 'agora',
+      likes: postData.likes?.length || 0,
+      comments: [],
+      liked: false
+    };
+    
+    // Processar anexos
+    if (postData.attachments && postData.attachments.length > 0) {
+      // Processar imagens
+      const imageAttachments = postData.attachments.filter(att => 
+        att.contentType && att.contentType.startsWith('image/'));
+      if (imageAttachments.length > 0) {
+        newPost.images = imageAttachments.map(img => img.type);
+      }
+      
+      // Processar vídeos
+      const videoAttachment = postData.attachments.find(att => 
+        att.contentType && att.contentType.startsWith('video/'));
+      if (videoAttachment) {
+        newPost.video = videoAttachment.type;
+      }
+    }
+    
+    // Adicionar evento
+    if (postData.eventData) {
+      try {
+        const eventDataObj = typeof postData.eventData === 'string' 
+          ? JSON.parse(postData.eventData) 
+          : postData.eventData;
+        newPost.event = {
+          title: eventDataObj.title,
+          date: eventDataObj.date,
+          location: eventDataObj.location
+        };
+      } catch (e) {
+        console.error('Erro ao processar dados do evento:', e);
+      }
+    }
+    
+    // Adicionar o novo post à lista
+    setPosts(prevPosts => [newPost, ...prevPosts]);
+    
+    toast({ 
+      title: "Publicação criada", 
+      description: "Sua publicação foi compartilhada com sucesso!" 
+    });
     
     // Resetar formulário
     setNewPostContent("");
@@ -238,48 +515,188 @@ const Timeline = () => {
     setEventLocation("");
     setEventDate(undefined);
     setNewPostDialog(false);
+    
+  } catch (error) {
+    console.error('Erro ao enviar post:', error);
+    toast({ 
+      title: "Erro", 
+      description: typeof error === 'object' && error instanceof Error ? error.message : "Não foi possível criar a publicação.",
+      variant: "destructive" 
+    });
+  }
+};
+  
+  // Função auxiliar para obter iniciais de um nome
+  const getInitials = (name: string) => {
+    if (!name) return '??';
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2);
   };
   
-  const handleLike = (postId: string) => {
-    setPosts(posts.map(post => {
-      if (post.id === postId) {
-        const liked = !post.liked;
-        return {
-          ...post,
-          liked,
-          likes: liked ? post.likes + 1 : post.likes - 1
-        };
+  // Implementar curtida de post com envio ao backend
+  const handleLike = async (postId: string) => {
+    if (!token) {
+      console.error('Token não encontrado');
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      // Primeiro atualizar otimisticamente a UI
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          const nowLiked = !post.liked;
+          return {
+            ...post,
+            liked: nowLiked,
+            likes: nowLiked ? post.likes + 1 : post.likes - 1
+          };
+        }
+        return post;
+      }));
+      
+      // Depois enviar ao backend
+      const response = await fetch(`${API_URL}/timeline/${postId}/like`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        // Se falhar, reverter a UI para o estado anterior
+        setPosts(prevPosts => prevPosts.map(post => {
+          if (post.id === postId) {
+            const nowLiked = !post.liked;
+            return {
+              ...post,
+              liked: nowLiked,
+              likes: nowLiked ? post.likes + 1 : post.likes - 1
+            };
+          }
+          return post;
+        }));
+        
+        throw new Error(`Erro ao curtir post: ${response.status}`);
       }
-      return post;
-    }));
-    // TODO: Enviar ao backend (PUT /api/timeline/:id/like)
+      
+      // Verificar resposta
+      const likes = await response.json();
+      console.log('Resposta de like:', likes);
+      
+    } catch (error) {
+      console.error('Erro ao curtir post:', error);
+      toast({ 
+        title: "Erro", 
+        description: "Não foi possível curtir a publicação.",
+        variant: "destructive" 
+      });
+    }
   };
   
-  const handleComment = (postId: string) => {
+  // Implementar adição de comentário com envio ao backend
+  const handleComment = async (postId: string) => {
+    if (!token) {
+      console.error('Token não encontrado');
+      navigate('/login');
+      return;
+    }
+    
     if (!commentInput[postId]?.trim()) return;
     
-    const newComment: PostComment = {
-      id: `c${Date.now()}`,
-      user: { name: 'Você', initials: 'VC' },
-      content: commentInput[postId],
-      timestamp: 'agora'
-    };
-    
-    setPosts(posts.map(post => {
-      if (post.id === postId) {
-        return {
-          ...post,
-          comments: [...post.comments, newComment]
-        };
+    try {
+      // Otimisticamente adicionar o comentário no frontend
+      const tempCommentId = `temp-${Date.now()}`;
+      const tempComment: PostComment = {
+        id: tempCommentId,
+        user: {
+          name: 'Você',
+          initials: 'VC' 
+        },
+        content: commentInput[postId],
+        timestamp: 'agora'
+      };
+      
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            comments: [...post.comments, tempComment]
+          };
+        }
+        return post;
+      }));
+      
+      // Limpar o input de comentário
+      setCommentInput(prev => ({
+        ...prev,
+        [postId]: ''
+      }));
+      
+      // Enviar ao backend
+      const response = await fetch(`${API_URL}/timeline/${postId}/comment`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: tempComment.content })
+      });
+      
+      if (!response.ok) {
+        // Reverter mudanças se falhar
+        setPosts(prevPosts => prevPosts.map(post => {
+          if (post.id === postId) {
+            return {
+              ...post,
+              comments: post.comments.filter(c => c.id !== tempCommentId)
+            };
+          }
+          return post;
+        }));
+        
+        throw new Error(`Erro ao adicionar comentário: ${response.status}`);
       }
-      return post;
-    }));
-    
-    setCommentInput({
-      ...commentInput,
-      [postId]: ''
-    });
-    // TODO: Enviar ao backend (POST /api/timeline/:id/comment)
+      
+      // Atualizar com os dados reais do backend
+      const updatedPost = await response.json();
+      console.log('Post com novo comentário:', updatedPost);
+      
+      // Atualizar o post completo com os dados recebidos
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          // Mapear comentários para o formato do frontend
+          const formattedComments = updatedPost.comments.map(comment => ({
+            id: comment._id,
+            user: {
+              name: comment.user?.nome || 'Usuário',
+              initials: getInitials(comment.user?.nome || 'Usuário')
+            },
+            content: comment.text,
+            timestamp: formatTimestamp(comment.createdAt || new Date())
+          }));
+          
+          return {
+            ...post,
+            comments: formattedComments
+          };
+        }
+        return post;
+      }));
+      
+    } catch (error) {
+      console.error('Erro ao adicionar comentário:', error);
+      toast({ 
+        title: "Erro", 
+        description: "Não foi possível adicionar o comentário.",
+        variant: "destructive" 
+      });
+    }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -607,217 +1024,94 @@ const Timeline = () => {
           </TabsList>
           
           <TabsContent value="todos" className="space-y-6">
-            {filteredPosts.map((post) => (
-              <Card key={post.id} className="animate-fade-in">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex space-x-3">
-                      <Avatar>
-                        <AvatarImage src={post.user.avatar} />
-                        <AvatarFallback className="bg-[#e60909] text-white">
-                          {post.user.initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <CardTitle className="text-base">{post.user.name}</CardTitle>
-                        <CardDescription>{post.timestamp}</CardDescription>
-                      </div>
-                    </div>
-                    
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem>Salvar</DropdownMenuItem>
-                        <DropdownMenuItem>Reportar</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pb-3">
-                  <p className="mb-4 whitespace-pre-line">{post.content}</p>
-                  
-                  {post.event && (
-                    <div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
-                      <div className="flex items-center">
-                        <Calendar className="h-5 w-5 text-[#e60909] mr-2" />
-                        <h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
-                      </div>
-                      <div className="text-sm ml-7 space-y-1 mt-1">
-                        <p className="text-gray-600">{post.event.date}</p>
-                        <p className="text-gray-600">{post.event.location}</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {post.images && post.images.length > 0 && (
-                    <div className={cn(
-                      "grid gap-2 mb-4", 
-                      post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
-                    )}>
-                      {post.images.map((img, idx) => (
-                        <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                          <img 
-                            src={img} 
-                            alt={`Imagem ${idx + 1}`} 
-                            className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {post.video && (
-                    <div className="mb-4 rounded-lg overflow-hidden">
-                      <video 
-                        controls 
-                        className="w-full" 
-                        poster="https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7"
-                      >
-                        <source src={post.video} type="video/mp4" />
-                        Seu navegador não suporta a reprodução de vídeos.
-                      </video>
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
-                    <div>{post.likes} curtidas</div>
-                    <div>{post.comments.length} comentários</div>
-                  </div>
-                </CardContent>
-                
-                <CardFooter className="flex flex-col space-y-4">
-                  <div className="flex justify-around w-full border-y py-1">
-                    <Button 
-                      variant="ghost" 
-                      className={cn(
-                        "flex-1", 
-                        post.liked ? "text-[#e60909]" : ""
-                      )}
-                      onClick={() => handleLike(post.id)}
-                    >
-                      <Heart className={cn("mr-1 h-4 w-4", post.liked ? "fill-[#e60909]" : "")} />
-                      Curtir
-                    </Button>
-                    <Button variant="ghost" className="flex-1">
-                      <MessageCircle className="mr-1 h-4 w-4" />
-                      Comentar
-                    </Button>
-                  </div>
-                  
-                  {post.comments.length > 0 && (
-                    <div className="space-y-3 w-full">
-                      {post.comments.map((comment) => (
-                        <div key={comment.id} className="flex space-x-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={comment.user.avatar} />
-                            <AvatarFallback className="bg-[#e60909] text-white text-xs">
-                              {comment.user.initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 px-3">
-                              <div className="font-medium text-sm">{comment.user.name}</div>
-                              <div className="text-sm">{comment.content}</div>
-                            </div>
-                            <div className="flex text-xs text-gray-500 mt-1 ml-2 space-x-3">
-                              <span>{comment.timestamp}</span>
-                              <button className="hover:text-[#e60909]">Curtir</button>
-                              <button className="hover:text-[#e60909]">Responder</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  <div className="flex space-x-3 w-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-[#e60909] text-white text-xs">
-                        VC
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 flex">
-                      <Input 
-                        placeholder="Escreva um comentário..." 
-                        className="rounded-r-none focus-visible:ring-0 border-r-0"
-                        value={commentInput[post.id] || ''}
-                        onChange={(e) => setCommentInput({
-                          ...commentInput,
-                          [post.id]: e.target.value
-                        })}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleComment(post.id);
-                          }
-                        }}
-                      />
-                      <Button 
-                        className="rounded-l-none bg-[#e60909] hover:bg-[#e60909]/90 text-white"
-                        onClick={() => handleComment(post.id)}
-                        disabled={!commentInput[post.id]?.trim()}
-                      >
-                        Enviar
-                      </Button>
-                    </div>
-                  </div>
-                </CardFooter>
-              </Card>
-            ))}
-            
-            {filteredPosts.length === 0 && (
+            {loading ? (
               <div className="text-center py-12">
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-4 inline-block">
-                  {activeTab === "fotos" ? (
-                    <ImageIcon className="h-10 w-10 text-gray-400" />
-                  ) : activeTab === "videos" ? (
-                    <Film className="h-10 w-10 text-gray-400" />
-                  ) : activeTab === "eventos" ? (
-                    <Calendar className="h-10 w-10 text-gray-400" />
-                  ) : (
-                    <MessageCircle className="h-10 w-10 text-gray-400" />
-                  )}
-                </div>
-                <h3 className="text-lg font-medium mt-4">Nenhuma publicação encontrada</h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  {activeTab === "fotos" 
-                    ? "Ainda não há fotos compartilhadas" 
-                    : activeTab === "videos"
-                      ? "Ainda não há vídeos compartilhados"
-                      : activeTab === "eventos"
-                        ? "Ainda não há eventos compartilhados"
-                        : "Comece compartilhando algo com sua equipe"}
-                </p>
+                <p>Carregando publicações...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12 text-red-500">
+                <p>{error}</p>
                 <Button 
                   className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
-                  onClick={() => setNewPostDialog(true)}
+                  onClick={() => window.location.reload()}
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Publicação
+                  Tentar novamente
                 </Button>
               </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="fotos" className="space-y-6">
-            {/* Conteúdo filtrado já renderizado na aba "todos" */}
-          </TabsContent>
-          
-          <TabsContent value="videos" className="space-y-6">
-            {/* Conteúdo filtrado já renderizado na aba "todos" */}
-          </TabsContent>
-          
-          <TabsContent value="eventos" className="space-y-6">
-            {/* Conteúdo filtrado já renderizado na aba "todos" */}
-          </TabsContent>
-        </Tabs>
-      </div>
-    </Layout>
-  );
-};
-
-export default Timeline;
+            ) : filteredPosts.length > 0 ? (
+              filteredPosts.map((post) => (
+                <Card key={post.id} className="animate-fade-in">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex space-x-3">
+                        <Avatar>
+                          <AvatarImage src={post.user.avatar} />
+                          <AvatarFallback className="bg-[#e60909] text-white">
+                            {post.user.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <CardTitle className="text-base">{post.user.name}</CardTitle>
+                          <CardDescription>{post.timestamp}</CardDescription>
+                        </div>
+                      </div>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem>Salvar</DropdownMenuItem>
+                          <DropdownMenuItem>Reportar</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent className="pb-3">
+                    <p className="mb-4 whitespace-pre-line">{post.content}</p>
+                    
+                    {post.event && (
+                      <div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
+                        <div className="flex items-center">
+                          <Calendar className="h-5 w-5 text-[#e60909] mr-2" />
+                          <h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
+                        </div>
+                        <div className="text-sm ml-7 space-y-1 mt-1">
+                          <p className="text-gray-600">{post.event.date}</p>
+                          <p className="text-gray-600">{post.event.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {post.images && post.images.length > 0 && (
+                      <div className={cn(
+                        "grid gap-2 mb-4", 
+                        post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                      )}>
+                        {post.images.map((img, idx) => (
+                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+                            <img 
+                              src={img} 
+                              alt={`Imagem ${idx + 1}`} 
+                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {post.video && (
+                      <div className="mb-4 rounded-lg overflow-hidden">
+                        <video 
+                          controls 
+                          className="w-full" 
+                          poster="https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7"
+                        >
+                          <source src={post.video} type="video/mp4" />
+                          Seu navegador não suporta a reprodução de vídeos.
+                        </video>
+                      </div>
+                    )}
