@@ -32,7 +32,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const loadUser = async () => {
       if (isAuthenticated()) {
         const result = await getUserData();
-        if (result.success) setUser(result.data);
+        if (result.success) {
+          setUser(result.data);
+          // Garantir que o ID do usuário está armazenado no localStorage
+          if (result.data && result.data.id) {
+            localStorage.setItem('userId', result.data.id);
+          }
+        }
       }
       setIsLoading(false);
     };
@@ -45,6 +51,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await loginUser(email, password);
       if (result.success) {
         setUser(result.data.usuario);
+        
+        // Armazenar o ID do usuário no localStorage
+        if (result.data.usuario && result.data.usuario.id) {
+          localStorage.setItem('userId', result.data.usuario.id);
+          console.log('ID do usuário armazenado:', result.data.usuario.id);
+        }
+        
         navigate('/');
       } else {
         throw new Error(result.message);
@@ -62,6 +75,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await registerUser(name, email, password);
       if (result.success) {
         setUser(result.data.usuario);
+        
+        // Armazenar o ID do usuário no localStorage
+        if (result.data.usuario && result.data.usuario.id) {
+          localStorage.setItem('userId', result.data.usuario.id);
+        }
+        
         navigate('/');
       } else {
         throw new Error(result.message);
@@ -75,12 +94,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     logoutUser();
+    localStorage.removeItem('userId'); // Remover o ID do usuário
     setUser(null);
     navigate('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: isAuthenticated(), isLoading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        register,
+        logout
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

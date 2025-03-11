@@ -4,13 +4,15 @@ const { Post, User } = require('../models');
 // Obter todas as publicações
 const getPosts = async (req, res) => {
   try {
+    console.log('Buscando posts para o usuário:', req.usuario.id);
     const posts = await Post.find()
       .sort({ createdAt: -1 })
       .populate('user', ['nome'])
       .populate('comments.user', ['nome']);
+    console.log(`Encontrados ${posts.length} posts`);
     res.json(posts);
   } catch (err) {
-    console.error(err.message);
+    console.error('Erro ao buscar posts:', err.message);
     res.status(500).send('Erro no servidor');
   }
 };
@@ -36,10 +38,19 @@ const createPost = async (req, res) => {
     if (eventData) {
       try {
         parsedEventData = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
+        console.log('Dados do evento processados:', parsedEventData);
       } catch (error) {
         console.error('Erro ao analisar dados do evento:', error);
       }
     }
+    
+    // CORREÇÃO: Criar o objeto Post antes de salvá-lo
+    const newPost = new Post({
+      text: text,
+      user: req.usuario.id,
+      attachments: attachments,
+      eventData: parsedEventData
+    });
     
     const post = await newPost.save();
     console.log('Post salvo com sucesso:', post);
@@ -53,6 +64,7 @@ const createPost = async (req, res) => {
     res.status(500).json({ mensagem: 'Erro ao criar post', erro: err.message });
   }
 };
+
 // Adicionar comentário
 const addComment = async (req, res) => {
   try {
@@ -89,13 +101,21 @@ const likePost = async (req, res) => {
       return res.status(404).json({ msg: 'Publicação não encontrada' });
     }
     console.log('Post antes do like:', post);
-    if (post.likes.some(like => like.toString() === req.usuario.id)) {
-      console.log('Post já curtido por:', req.usuario.id);
-      return res.status(400).json({ msg: 'Publicação já curtida' });
+    
+    // Verificar se já curtiu e remover se sim, adicionar se não
+    const index = post.likes.findIndex(like => like.toString() === req.usuario.id);
+    if (index !== -1) {
+      // Já curtiu, então remover
+      console.log('Post já curtido, removendo curtida de:', req.usuario.id);
+      post.likes.splice(index, 1);
+    } else {
+      // Ainda não curtiu, adicionar
+      console.log('Adicionando curtida de:', req.usuario.id);
+      post.likes.unshift(req.usuario.id);
     }
-    post.likes.unshift(req.usuario.id);
+    
     await post.save();
-    console.log('Post após like:', post);
+    console.log('Post após like/unlike:', post);
     res.json(post.likes);
   } catch (err) {
     console.error('Erro no likePost:', err.message);
