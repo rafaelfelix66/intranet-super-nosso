@@ -844,4 +844,288 @@ const Timeline = () => {
                   <Button 
                     variant="outline" 
                     className="flex-1"
-                    onClick={() => videoInputRef.current?.
+                    onClick={() => videoInputRef.current?.click()}
+                    disabled={previewImages.length > 0 || !!selectedVideo}
+                  >
+                    <Film className="mr-2 h-4 w-4" />
+                    {selectedVideo ? "Vídeo Selecionado" : "Adicionar Vídeo"}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    className={cn(
+                      "flex-1",
+                      showEventForm && "bg-gray-100 dark:bg-gray-700"
+                    )}
+                    onClick={toggleEventForm}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {showEventForm ? "Cancelar Evento" : "Criar Evento"}
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setNewPostContent("");
+                    setSelectedImages([]);
+                    setPreviewImages([]);
+                    setSelectedVideo(null);
+                    setPreviewVideo(null);
+                    setShowEventForm(false);
+                    setEventTitle("");
+                    setEventLocation("");
+                    setEventDate(undefined);
+                    setNewPostDialog(false);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  className="bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                  onClick={createNewPost}
+                >
+                  Publicar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+        
+        <Tabs defaultValue="todos" className="w-full" onValueChange={setActiveTab}>
+          <TabsList className="grid grid-cols-4 mb-6">
+            <TabsTrigger value="todos">Todos</TabsTrigger>
+            <TabsTrigger value="fotos">Fotos</TabsTrigger>
+            <TabsTrigger value="videos">Vídeos</TabsTrigger>
+            <TabsTrigger value="eventos">Eventos</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="todos" className="space-y-6">
+            {loading ? (
+              <div className="text-center py-12">
+                <p>Carregando publicações...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12 text-red-500">
+                <p>{error}</p>
+                <Button 
+                  className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                  onClick={() => window.location.reload()}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : filteredPosts.length > 0 ? (
+              filteredPosts.map((post) => (
+                <Card key={post.id} className="animate-fade-in">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex space-x-3">
+                        <Avatar>
+                          <AvatarImage src={post.user.avatar} />
+                          <AvatarFallback className="bg-[#e60909] text-white">
+                            {post.user.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <CardTitle className="text-base">{post.user.name}</CardTitle>
+                          <CardDescription>{post.timestamp}</CardDescription>
+                        </div>
+                      </div>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          <DropdownMenuItem>Salvar</DropdownMenuItem>
+                          <DropdownMenuItem>Reportar</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent className="pb-3">
+                    <p className="mb-4 whitespace-pre-line">{post.content}</p>
+                    
+                    {post.event && (
+                      <div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
+                        <div className="flex items-center">
+                          <Calendar className="h-5 w-5 text-[#e60909] mr-2" />
+                          <h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
+                        </div>
+                        <div className="text-sm ml-7 space-y-1 mt-1">
+                          <p className="text-gray-600">{post.event.date}</p>
+                          <p className="text-gray-600">{post.event.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {post.images && post.images.length > 0 && (
+                      <div className={cn(
+                        "grid gap-2 mb-4", 
+                        post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                      )}>
+                        {post.images.map((img, idx) => (
+                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+                            <img 
+                              src={img} 
+                              alt={`Imagem ${idx + 1}`} 
+                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {post.video && (
+                      <div className="mb-4 rounded-lg overflow-hidden">
+                        <video 
+                          controls 
+                          className="w-full" 
+                          poster="https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7"
+                        >
+                          <source src={post.video} type="video/mp4" />
+                          Seu navegador não suporta a reprodução de vídeos.
+                        </video>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
+                      <div>{post.likes} curtidas</div>
+                      <div>{post.comments.length} comentários</div>
+                    </div>
+                  </CardContent>
+                  
+                  <CardFooter className="flex flex-col space-y-4">
+                    <div className="flex justify-around w-full border-y py-1">
+                      <Button 
+                        variant="ghost" 
+                        className={cn(
+                          "flex-1", 
+                          post.liked ? "text-[#e60909]" : ""
+                        )}
+                        onClick={() => handleLike(post.id)}
+                      >
+                        <Heart className={cn("mr-1 h-4 w-4", post.liked ? "fill-[#e60909]" : "")} />
+                        Curtir
+                      </Button>
+                      <Button variant="ghost" className="flex-1">
+                        <MessageCircle className="mr-1 h-4 w-4" />
+                        Comentar
+                      </Button>
+                    </div>
+                    
+                    {post.comments.length > 0 && (
+                      <div className="space-y-3 w-full">
+                        {post.comments.map((comment) => (
+                          <div key={comment.id} className="flex space-x-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={comment.user.avatar} />
+                              <AvatarFallback className="bg-[#e60909] text-white text-xs">
+                                {comment.user.initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-2 px-3">
+                                <div className="font-medium text-sm">{comment.user.name}</div>
+                                <div className="text-sm">{comment.content}</div>
+                              </div>
+                              <div className="flex text-xs text-gray-500 mt-1 ml-2 space-x-3">
+                                <span>{comment.timestamp}</span>
+                                <button className="hover:text-[#e60909]">Curtir</button>
+                                <button className="hover:text-[#e60909]">Responder</button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="flex space-x-3 w-full">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-[#e60909] text-white text-xs">
+                          VC
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 flex">
+                        <Input 
+                          placeholder="Escreva um comentário..." 
+                          className="rounded-r-none focus-visible:ring-0 border-r-0"
+                          value={commentInput[post.id] || ''}
+                          onChange={(e) => setCommentInput({
+                            ...commentInput,
+                            [post.id]: e.target.value
+                          })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleComment(post.id);
+                            }
+                          }}
+                        />
+                        <Button 
+                          className="rounded-l-none bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                          onClick={() => handleComment(post.id)}
+                          disabled={!commentInput[post.id]?.trim()}
+                        >
+                          Enviar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 dark:bg-gray-800 rounded-full p-4 inline-block">
+                  {activeTab === "fotos" ? (
+                    <ImageIcon className="h-10 w-10 text-gray-400" />
+                  ) : activeTab === "videos" ? (
+                    <Film className="h-10 w-10 text-gray-400" />
+                  ) : activeTab === "eventos" ? (
+                    <Calendar className="h-10 w-10 text-gray-400" />
+                  ) : (
+                    <MessageCircle className="h-10 w-10 text-gray-400" />
+                  )}
+                </div>
+                <h3 className="text-lg font-medium mt-4">Nenhuma publicação encontrada</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {activeTab === "fotos" 
+                    ? "Ainda não há fotos compartilhadas" 
+                    : activeTab === "videos"
+                      ? "Ainda não há vídeos compartilhados"
+                      : activeTab === "eventos"
+                        ? "Ainda não há eventos compartilhados"
+                        : "Comece compartilhando algo com sua equipe"}
+                </p>
+                <Button 
+                  className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                  onClick={() => setNewPostDialog(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Publicação
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="fotos" className="space-y-6">
+            {/* Conteúdo filtrado já renderizado na aba "todos" */}
+          </TabsContent>
+          
+          <TabsContent value="videos" className="space-y-6">
+            {/* Conteúdo filtrado já renderizado na aba "todos" */}
+          </TabsContent>
+          
+          <TabsContent value="eventos" className="space-y-6">
+            {/* Conteúdo filtrado já renderizado na aba "todos" */}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </Layout>
+  );
+};
+
+export default Timeline;					
