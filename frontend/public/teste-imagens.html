@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Imagens</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .image-test {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .image-container {
+            max-width: 100%;
+            height: 300px;
+            background-color: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .path {
+            font-family: monospace;
+            background-color: #f0f0f0;
+            padding: 5px;
+            border-radius: 3px;
+            word-break: break-all;
+        }
+        .success, .error {
+            padding: 5px 10px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de Caminhos de Imagem</h1>
+    <p>Esta página testa diferentes formatos de caminhos para identificar qual funciona corretamente com sua configuração.</p>
+    
+    <!-- Caminho Exemplo 1 -->
+    <div class="image-test">
+        <h3>Caminho 1: /uploads/timeline/...</h3>
+        <div class="path">/uploads/timeline/1741737973386-66017038-islc.png</div>
+        <div class="image-container">
+            <img src="/uploads/timeline/1741737973386-66017038-islc.png" alt="Imagem 1" onload="this.parentNode.innerHTML += '<div class=\'success\'>Imagem carregada com sucesso!</div>'" onerror="this.parentNode.innerHTML += '<div class=\'error\'>Erro ao carregar imagem</div>'">
+        </div>
+    </div>
+    
+    <!-- Caminho Exemplo 2 -->
+    <div class="image-test">
+        <h3>Caminho 2: uploads/timeline/... (sem barra inicial)</h3>
+        <div class="path">uploads/timeline/1741737973386-66017038-islc.png</div>
+        <div class="image-container">
+            <img src="uploads/timeline/1741737973386-66017038-islc.png" alt="Imagem 2" onload="this.parentNode.innerHTML += '<div class=\'success\'>Imagem carregada com sucesso!</div>'" onerror="this.parentNode.innerHTML += '<div class=\'error\'>Erro ao carregar imagem</div>'">
+        </div>
+    </div>
+    
+    <!-- Caminho Exemplo 3 -->
+    <div class="image-test">
+        <h3>Caminho 3: /uploads/... (sem timeline)</h3>
+        <div class="path">/uploads/1741728259629-116727198-photo-1519389950473-47ba0277781c.jpg</div>
+        <div class="image-container">
+            <img src="/uploads/1741728259629-116727198-photo-1519389950473-47ba0277781c.jpg" alt="Imagem 3" onload="this.parentNode.innerHTML += '<div class=\'success\'>Imagem carregada com sucesso!</div>'" onerror="this.parentNode.innerHTML += '<div class=\'error\'>Erro ao carregar imagem</div>'">
+        </div>
+    </div>
+    
+    <!-- Caminho Exemplo 4 -->
+    <div class="image-test">
+        <h3>Caminho 4: /app/routes/uploads/...</h3>
+        <div class="path">/app/routes/uploads/1741727334439-88936601-photo-1519389950473-47ba0277781c.jpg</div>
+        <div class="image-container">
+            <img src="/app/routes/uploads/1741727334439-88936601-photo-1519389950473-47ba0277781c.jpg" alt="Imagem 4" onload="this.parentNode.innerHTML += '<div class=\'success\'>Imagem carregada com sucesso!</div>'" onerror="this.parentNode.innerHTML += '<div class=\'error\'>Erro ao carregar imagem</div>'">
+        </div>
+    </div>
+    
+    <!-- Caminho Normalizado 1 -->
+    <div class="image-test">
+        <h3>Caminho Normalizado 1: /uploads → /uploads/timeline</h3>
+        <div class="path">/uploads/timeline/1741728259629-116727198-photo-1519389950473-47ba0277781c.jpg</div>
+        <div class="image-container">
+            <img src="/uploads/timeline/1741728259629-116727198-photo-1519389950473-47ba0277781c.jpg" alt="Imagem 5" onload="this.parentNode.innerHTML += '<div class=\'success\'>Imagem carregada com sucesso!</div>'" onerror="this.parentNode.innerHTML += '<div class=\'error\'>Erro ao carregar imagem</div>'">
+        </div>
+    </div>
+    
+    <!-- Caminho Normalizado 2 -->
+    <div class="image-test">
+        <h3>Caminho Normalizado 2: /app/routes → /uploads/timeline</h3>
+        <div class="path">/uploads/timeline/1741727334439-88936601-photo-1519389950473-47ba0277781c.jpg</div>
+        <div class="image-container">
+            <img src="/uploads/timeline/1741727334439-88936601-photo-1519389950473-47ba0277781c.jpg" alt="Imagem 6" onload="this.parentNode.innerHTML += '<div class=\'success\'>Imagem carregada com sucesso!</div>'" onerror="this.parentNode.innerHTML += '<div class=\'error\'>Erro ao carregar imagem</div>'">
+        </div>
+    </div>
+
+    <script>
+        // Script para gerar relatório
+        window.addEventListener('load', function() {
+            const successCount = document.querySelectorAll('.success').length;
+            const totalTests = document.querySelectorAll('.image-container').length;
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.innerHTML = `
+                <h2>Resultado do Teste</h2>
+                <p>Total de testes: ${totalTests}</p>
+                <p>Imagens carregadas com sucesso: ${successCount}</p>
+                <p>Taxa de sucesso: ${Math.round((successCount/totalTests)*100)}%</p>
+            `;
+            
+            document.body.appendChild(resultDiv);
+        });
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // src/services/api.ts
-// src/services/api.ts - Versão atualizada
+// Para melhorar o tratamento de uploads e configuração de cabeçalhos
 
 // Detectar automaticamente o ambiente e usar o host adequado
 const getBaseUrl = () => {
@@ -143,6 +143,35 @@ export const api = {
   },
   
   upload: async (endpoint: string, formData: FormData) => {
-    return api.post(endpoint, formData, true);
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+    
+    try {
+      console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
+      console.log('FormData contém arquivos:', formData.getAll('attachments').length);
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+          // Não definimos Content-Type aqui, deixamos o navegador definir com boundary
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Erro ${response.status}:`, errorText);
+        throw new Error(`Erro no upload: ${response.status}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Erro na requisição de upload:', error);
+      throw error;
+    }
   }
 };

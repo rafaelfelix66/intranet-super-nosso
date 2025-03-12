@@ -2,6 +2,30 @@
 const { Post, User } = require('../models');
 const path = require('path'); // Adicione esta linha para importar o módulo path
 
+// Função para normalizar caminhos de arquivos
+const normalizePath = (filePath) => {
+  // Remover quaisquer caminhos de servidor como /app/routes/
+  let normalizedPath = filePath.replace(/^\/app\/routes\//, '/');
+  
+  // Garantir que o caminho começa com /uploads/timeline/
+  if (!normalizedPath.includes('/uploads/timeline/')) {
+    // Se já tiver /uploads/ mas não /timeline/
+    if (normalizedPath.includes('/uploads/')) {
+      normalizedPath = normalizedPath.replace('/uploads/', '/uploads/timeline/');
+    } 
+    // Se não tiver /uploads/ no começo
+    else if (!normalizedPath.startsWith('/uploads/')) {
+      // Se já começar com /
+      if (normalizedPath.startsWith('/')) {
+        normalizedPath = `/uploads/timeline${normalizedPath}`;
+      } else {
+        normalizedPath = `/uploads/timeline/${normalizedPath}`;
+      }
+    }
+  }
+  
+  return normalizedPath;
+};
 // Obter todas as publicações
 const getPosts = async (req, res) => {
   try {
@@ -12,47 +36,85 @@ const getPosts = async (req, res) => {
       .populate('comments.user', ['nome']);
     console.log(`Encontrados ${posts.length} posts`);
     
-		// Converter os posts para o formato esperado pelo frontend
-		const formattedPosts = posts.map(post => {
-		  // Converte o post para um objeto simples (sem métodos do mongoose)
-		  const postObj = post.toObject();
-		  
-		  // Importante: adiciona a propriedade images que o frontend espera
-		  if (postObj.attachments && postObj.attachments.length > 0) {
-			postObj.images = [...postObj.attachments]; // Copia os caminhos
-		  } else {
-			postObj.images = [];
-		  }
-		  
-		  return postObj;
-		});
-	  
-	console.log('Posts formatados para o frontend:', formattedPosts);
-	return res.json(formattedPosts);
+    // Converter os posts para o formato esperado pelo frontend
+    const formattedPosts = posts.map(post => {
+      // Converte o post para um objeto simples (sem métodos do mongoose)
+      const postObj = post.toObject();
+      
+      // Garantir que o campo images existe
+      if (!postObj.images) {
+        postObj.images = [];
+      }
+      
+      // Normalizar caminhos em attachments
+      if (postObj.attachments && postObj.attachments.length > 0) {
+        postObj.attachments = postObj.attachments.map(attachment => 
+          typeof attachment === 'string' ? normalizePath(attachment) : attachment
+        );
+      }
+      
+      // Normalizar caminhos em images
+      if (postObj.images && postObj.images.length > 0) {
+        postObj.images = postObj.images.map(img => 
+          typeof img === 'string' ? normalizePath(img) : img
+        );
+      }
+      
+      // Garantir que images tem os mesmos valores que attachments
+      if (postObj.attachments && postObj.attachments.length > 0) {
+        if (!postObj.images) postObj.images = [];
+        
+        // Adicionar a images quaisquer attachments que não estejam lá
+        postObj.attachments.forEach(attachment => {
+          if (!postObj.images.includes(attachment)) {
+            postObj.images.push(attachment);
+          }
+        });
+      }
+      
+      // Log detalhado para depuração
+      console.log(`Post ${postObj._id} processado:`, {
+        user: postObj.user ? postObj.user.nome : 'unknown',
+        text: postObj.text.substr(0, 20) + (postObj.text.length > 20 ? '...' : ''),
+        attachmentsCount: postObj.attachments ? postObj.attachments.length : 0,
+        imagesCount: postObj.images ? postObj.images.length : 0
+      });
+      
+      return postObj;
+    });
+    
+    console.log('Posts formatados com sucesso:', 
+      formattedPosts.length
+    );
+    return res.json(formattedPosts);
   } catch (err) {
     console.error('Erro ao buscar posts:', err.message);
     res.status(500).send('Erro no servidor');
   }
 };
 
+
 // Criar uma publicação
 const createPost = async (req, res) => {
   try {
     const { text, eventData } = req.body;
-    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files, eventData });
+    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files?.length || 0, eventData: !!eventData });
     
     if (!text && !eventData) {
       console.log('Texto vazio e sem dados de evento, rejeitando post');
       return res.status(400).json({ mensagem: 'O texto ou dados de evento são obrigatórios' });
     }
     
-  // Processar anexos se houver arquivos enviados
-	const attachments = req.files ? req.files.map(file => {
-	  // Ajustar o caminho para o padrão /uploads/timeline/...
-	  // Substitua qualquer caminho existente pelo padrão correto
-	  const filename = path.basename(file.path);
-	  return `/uploads/timeline/${filename}`;
-	}) : [];
+    // Processar anexos se houver arquivos enviados
+    const attachments = req.files ? req.files.map(file => {
+      // Ajustar o caminho para o padrão /uploads/timeline/...
+      const filename = path.basename(file.path);
+      const normalizedPath = `/uploads/timeline/${filename}`;
+      console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath}`);
+      return normalizedPath;
+    }) : [];
+    
+    console.log('Anexos processados:', attachments);
     
     // Processar dados do evento se forem fornecidos
     let parsedEventData = null;
@@ -69,12 +131,18 @@ const createPost = async (req, res) => {
     const newPost = new Post({
       text,
       user: req.usuario.id,
-      attachments, // Usar diretamente como definido acima
-      eventData: parsedEventData
+      attachments,
+      eventData: parsedEventData,
+      images: [...attachments] // Garantir que images tenha os mesmos valores que attachments
     });
     
     const post = await newPost.save();
-    console.log('Post salvo com sucesso:', post);
+    console.log('Post salvo com sucesso:', {
+      id: post._id,
+      text: post.text.substring(0, 30),
+      attachments: post.attachments.length,
+      images: post.images.length
+    });
     
     // Carregar informações do usuário para a resposta
     const populatedPost = await Post.findById(post._id)

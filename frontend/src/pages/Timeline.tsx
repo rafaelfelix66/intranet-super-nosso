@@ -123,6 +123,28 @@ const formatTimestamp = (date: string | Date) => {
 };
 
 // Funções de integração com a API
+const normalizePath = (path: string): string => {
+  // Remover o /app/routes prefixo se existir
+  let normalizedPath = path.replace(/^\/app\/routes\//, '/');
+  
+  // Garantir que sempre comece com /uploads/
+  if (!normalizedPath.startsWith('/uploads/')) {
+    if (normalizedPath.startsWith('/')) {
+      normalizedPath = `/uploads${normalizedPath}`;
+    } else {
+      normalizedPath = `/uploads/${normalizedPath}`;
+    }
+  }
+  
+  // Garantir que /uploads/timeline/ esteja no caminho
+  if (!normalizedPath.includes('/uploads/timeline/') && normalizedPath.startsWith('/uploads/')) {
+    normalizedPath = normalizedPath.replace('/uploads/', '/uploads/timeline/');
+  }
+  
+  console.log(`Caminho normalizado: ${path} -> ${normalizedPath}`);
+  return normalizedPath;
+};
+
 const fetchPosts = async () => {
   try {
     const data = await api.get('/timeline');
@@ -132,7 +154,11 @@ const fetchPosts = async () => {
       console.log("ID do usuário atual:", userId);
       
       const formattedPosts = data.map(post => {
-        console.log(`Post ${post._id} - curtidas:`, post.likes);
+        console.log(`Post ${post._id}:`, {
+          text: post.text.substring(0, 30),
+          hasAttachments: !!post.attachments && post.attachments.length > 0,
+          hasImages: !!post.images && post.images.length > 0
+        });
         
         const formattedPost = {
           id: post._id,
@@ -155,23 +181,28 @@ const fetchPosts = async () => {
           liked: post.likes?.some(like => 
             like.toString() === userId || 
             like === userId
-          ) || false
+          ) || false,
+          images: [] // Inicializar array vazio
         };
         
-        if (post.attachments && post.attachments.length > 0) {
-          const imageAttachments = post.attachments.filter(att => 
-            att.contentType && att.contentType.startsWith('image/'));
-          if (imageAttachments.length > 0) {
-            formattedPost.images = imageAttachments.map(img => `/uploads/${img.type}`);
-          }
-          
-          const videoAttachment = post.attachments.find(att => 
-            att.contentType && att.contentType.startsWith('video/'));
-          if (videoAttachment) {
-            formattedPost.video = `/uploads/${videoAttachment.type}`;
-          }
+        // Processamento de attachments e images
+        // Primeiro, verificar campo images
+        if (post.images && post.images.length > 0) {
+          formattedPost.images = post.images.map(img => 
+            typeof img === 'string' ? normalizePath(img) : ''
+          ).filter(Boolean);
         }
         
+        // Se images estiver vazio, tentar attachments
+        if (formattedPost.images.length === 0 && post.attachments && post.attachments.length > 0) {
+          formattedPost.images = post.attachments.map(attachment => 
+            typeof attachment === 'string' ? normalizePath(attachment) : ''
+          ).filter(Boolean);
+        }
+        
+        console.log(`Post ${post._id} - imagens processadas:`, formattedPost.images);
+        
+        // Processamento de eventos
         if (post.eventData) {
           try {
             formattedPost.event = typeof post.eventData === 'string' 
@@ -195,6 +226,51 @@ const fetchPosts = async () => {
     throw new Error('Não foi possível carregar os posts');
   }
 };
+
+// Componente melhorado para renderizar imagens com tratamento de erro
+	const ImageRenderer = ({ src, alt, className }) => {
+	  const [error, setError] = useState(false);
+	  const [currentSrc, setCurrentSrc] = useState(src);
+	  
+	  useEffect(() => {
+		setError(false);
+		setCurrentSrc(src);
+	  }, [src]);
+	  
+	  const handleError = () => {
+		if (!error) {
+		  // Se ainda não tentou corrigir, tenta normalizar o caminho
+		  setError(true);
+		  const correctedPath = normalizePath(src);
+		  console.log(`Erro ao carregar imagem. Tentando caminho alternativo: ${correctedPath}`);
+		  setCurrentSrc(correctedPath);
+		}
+	  };
+	  
+	  if (error && currentSrc !== src) {
+		return (
+		  <img 
+			src={currentSrc}
+			alt={alt}
+			className={className}
+			onError={() => {
+			  console.error(`Falha definitiva ao carregar imagem: ${src} -> ${currentSrc}`);
+			  // Usar uma imagem de placeholder após segunda tentativa falhar
+			  setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+			}}
+		  />
+		);
+	  }
+	  
+	  return (
+		<img 
+		  src={currentSrc}
+		  alt={alt}
+		  className={className}
+		  onError={handleError}
+		/>
+	  );
+	};
 
 const createNewPostApi = async (
   text: string, 
@@ -874,21 +950,21 @@ const Timeline = () => {
                       </div>
                     )}
                     {post.images && post.images.length > 0 && (
-                      <div className={cn(
-                        "grid gap-2 mb-4", 
-                        post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
-                      )}>
-                        {post.images.map((img, idx) => (
-                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                            <img 
-                              src={img} 
-                              alt={`Imagem ${idx + 1}`} 
-                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+					  <div className={cn(
+						"grid gap-2 mb-4", 
+						post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+					  )}>
+						{post.images.map((img, idx) => (
+						  <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+							<ImageRenderer 
+							  src={img} 
+							  alt={`Imagem ${idx + 1}`} 
+							  className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+							/>
+						  </div>
+						))}
+					  </div>
+					)}
                     {post.video && (
                       <div className="mb-4 rounded-lg overflow-hidden">
                         <video 
