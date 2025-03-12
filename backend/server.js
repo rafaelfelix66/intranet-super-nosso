@@ -22,52 +22,15 @@ const io = socketIo(server, {
 });
 // Criar diretórios de upload necessários
 const fs = require('fs');
-// Configuração do multer para upload de arquivos
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Determinar o destino do arquivo com base no tipo de conteúdo ou nome
-    let uploadPath = path.join(__dirname, 'uploads');
-    
-    // Se for uma imagem ou vídeo para timeline
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
-      uploadPath = path.join(__dirname, 'uploads/timeline');
-    } 
-    // Se for um arquivo para o chat
-    else if (req.path.includes('/chat')) {
-      uploadPath = path.join(__dirname, 'uploads/chat');
-    }
-    // Se for um arquivo para o gerenciador de arquivos
-    else if (req.path.includes('/files')) {
-      uploadPath = path.join(__dirname, 'uploads/files');
-    }
-    
-    // Garantir que o diretório existe
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-      console.log(`Diretório de upload criado: ${uploadPath}`);
-    }
-    
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    // Criar nome de arquivo único e seguro
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    const safeFilename = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
-    cb(null, `${uniqueSuffix}-${safeFilename}`);
-  }
-});
 
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
-});
 // Criar diretórios de upload se não existirem
 const createRequiredDirs = () => {
   const dirs = [
     path.join(__dirname, 'uploads'),
     path.join(__dirname, 'uploads/chat'),
     path.join(__dirname, 'uploads/files'),
-    path.join(__dirname, 'uploads/knowledge')
+    path.join(__dirname, 'uploads/knowledge'),
+	path.join(__dirname, 'uploads/timeline')
   ];
   
   dirs.forEach(dir => {
@@ -115,59 +78,44 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeline')));
 
-// Para depuração, adicione este middleware
-app.get('/api/arquivo/:filename', (req, res) => {
-  const filename = req.params.filename;
-  console.log(`Solicitação para arquivo: ${filename}`);
-  
-  // Tentar encontrar o arquivo em diferentes locais
-  const possiblePaths = [
-    path.join(__dirname, 'uploads', 'timeline', filename),
-    path.join(__dirname, 'uploads', filename),
-    path.join(__dirname, filename)
-  ];
-  
-  // Procurar o arquivo em todos os caminhos possíveis
-  let filePath = null;
-  for (const testPath of possiblePaths) {
-    if (fs.existsSync(testPath)) {
-      filePath = testPath;
-      console.log(`Arquivo encontrado em: ${filePath}`);
-      break;
-    }
-  }
-  
-  if (filePath) {
-    res.sendFile(filePath);
-  } else {
-    console.log(`Arquivo não encontrado: ${filename}`);
-    console.log('Caminhos verificados:', possiblePaths);
-    
-    // Listar arquivos nos diretórios para ajudar na depuração
-    try {
-      const timelineDir = path.join(__dirname, 'uploads', 'timeline');
-      const uploadsDir = path.join(__dirname, 'uploads');
-      
-      console.log('Conteúdo do diretório uploads/timeline:');
-      if (fs.existsSync(timelineDir)) {
-        console.log(fs.readdirSync(timelineDir));
-      } else {
-        console.log('Diretório não existe');
-      }
-      
-      console.log('Conteúdo do diretório uploads:');
-      if (fs.existsSync(uploadsDir)) {
-        console.log(fs.readdirSync(uploadsDir));
-      } else {
-        console.log('Diretório não existe');
-      }
-    } catch (error) {
-      console.error('Erro ao listar diretórios:', error);
-    }
-    
-    res.status(404).send('Arquivo não encontrado');
+// Middleware para logging de requisições
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`, {
+    headers: {
+      'content-type': req.headers['content-type'],
+      'authorization': req.headers['authorization'] ? 'Bearer [REDACTED]' : 'none'
+    },
+    body: req.body ? '[PRESENT]' : '[EMPTY]'
+  });
+  next();
+});
+
+// Configuração do MongoDB
+const mongoURI = process.env.MONGODB_URI || 'mongodb://admin:admin123@mongodb:27017/intranet?authSource=admin';
+
+mongoose
+  .connect(mongoURI)
+  .then(() => console.log('Conectado ao MongoDB'))
+  .catch((err) => console.error('Erro ao conectar ao MongoDB:', err));
+
+// Configuração do multer para upload de arquivos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
   }
 });
+const upload = multer({ storage });
+
+// Rotas
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/timeline', require('./routes/timeline'));
+app.use('/api/knowledge', require('./routes/knowledge'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/files', require('./routes/files'));
+
 // Configuração específica para pré-voo de upload de arquivos
 app.options('/api/files/upload', cors(corsOptions));
 
@@ -468,10 +416,6 @@ io.on('connection', (socket) => {
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
-}
-const timelineUploadsDir = path.join(uploadsDir, 'timeline');
-if (!fs.existsSync(timelineUploadsDir)) {
-  fs.mkdirSync(timelineUploadsDir, { recursive: true });
 }
 
 // Iniciar servidor
