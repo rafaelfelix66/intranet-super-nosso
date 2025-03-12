@@ -127,6 +127,236 @@ app.use('/api/timeline', require('./routes/timeline'));
 app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/files', require('./routes/files'));
+// Rota específica para arquivos de uploads com resposta de depuração
+app.get('/api/arquivo/:filename', (req, res) => {
+  const filename = req.params.filename;
+  console.log(`Solicitação para arquivo: ${filename}`);
+  
+  // Tentar encontrar o arquivo em diferentes locais
+  const possiblePaths = [
+    path.join(__dirname, 'uploads', 'timeline', filename),
+    path.join(__dirname, 'uploads', filename),
+    path.join(__dirname, filename)
+  ];
+  
+  // Procurar o arquivo em todos os caminhos possíveis
+  let filePath = null;
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      filePath = testPath;
+      console.log(`Arquivo encontrado em: ${filePath}`);
+      break;
+    }
+  }
+  
+  if (filePath) {
+    res.sendFile(filePath);
+  } else {
+    console.log(`Arquivo não encontrado: ${filename}`);
+    console.log('Caminhos verificados:', possiblePaths);
+    
+    // Listar arquivos nos diretórios para ajudar na depuração
+    try {
+      const timelineDir = path.join(__dirname, 'uploads', 'timeline');
+      const uploadsDir = path.join(__dirname, 'uploads');
+      
+      console.log('Conteúdo do diretório uploads/timeline:');
+      if (fs.existsSync(timelineDir)) {
+        console.log(fs.readdirSync(timelineDir));
+      } else {
+        console.log('Diretório não existe');
+      }
+      
+      console.log('Conteúdo do diretório uploads:');
+      if (fs.existsSync(uploadsDir)) {
+        console.log(fs.readdirSync(uploadsDir));
+      } else {
+        console.log('Diretório não existe');
+      }
+    } catch (error) {
+      console.error('Erro ao listar diretórios:', error);
+    }
+    
+    res.status(404).send('Arquivo não encontrado');
+  }
+});
+
+// Rota para verificar e listar todos os arquivos disponíveis
+app.get('/api/arquivos-disponiveis', (req, res) => {
+  console.log('Solicitação para listar arquivos disponíveis');
+  
+  try {
+    const result = {
+      uploadsDirExists: false,
+      timelineDirExists: false,
+      uploadsFiles: [],
+      timelineFiles: []
+    };
+    
+    const uploadsDir = path.join(__dirname, 'uploads');
+    const timelineDir = path.join(__dirname, 'uploads', 'timeline');
+    
+    if (fs.existsSync(uploadsDir)) {
+      result.uploadsDirExists = true;
+      result.uploadsFiles = fs.readdirSync(uploadsDir);
+    }
+    
+    if (fs.existsSync(timelineDir)) {
+      result.timelineDirExists = true;
+      result.timelineFiles = fs.readdirSync(timelineDir);
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Erro ao listar arquivos disponíveis:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Adicionar uma rota de teste HTML para visualizar imagens
+app.get('/api/teste-imagem', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Imagens</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .image-container { margin: 20px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .file-path { font-family: monospace; background: #f0f0f0; padding: 5px; margin: 5px 0; word-break: break-all; }
+        img { max-width: 100%; border: 1px dashed #ccc; }
+        .success { color: green; }
+        .error { color: red; }
+        .file-list { background: #f9f9f9; padding: 10px; margin: 10px 0; }
+        button { padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Visualização de Imagens</h1>
+    
+    <div>
+        <button id="loadFilesBtn">Carregar Lista de Arquivos</button>
+        <div id="fileListContainer" class="file-list" style="display: none;"></div>
+    </div>
+    
+    <h2>Ver Arquivo Específico</h2>
+    <div>
+        <label for="fileInput">Nome do arquivo:</label>
+        <input type="text" id="fileInput" value="1741744753758-427970592-super-nosso-logo.png" style="width: 300px; margin-right: 10px;">
+        <button id="viewFileBtn">Visualizar</button>
+    </div>
+    
+    <div id="imageContainer" class="image-container" style="display: none;">
+        <h3>Visualização da Imagem</h3>
+        <div id="filePath" class="file-path"></div>
+        <div id="imageWrapper"></div>
+    </div>
+    
+    <script>
+        // Carregar lista de arquivos disponíveis
+        document.getElementById('loadFilesBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/arquivos-disponiveis');
+                const data = await response.json();
+                
+                const fileListContainer = document.getElementById('fileListContainer');
+                fileListContainer.style.display = 'block';
+                
+                let html = '<h3>Arquivos Disponíveis</h3>';
+                
+                if (data.timelineDirExists) {
+                    html += '<h4>Diretório /uploads/timeline/</h4>';
+                    if (data.timelineFiles.length > 0) {
+                        html += '<ul>';
+                        data.timelineFiles.forEach(file => {
+                            html += `<li><a href="#" class="file-link" data-path="timeline/${file}">${file}</a></li>`;
+                        });
+                        html += '</ul>';
+                    } else {
+                        html += '<p>Nenhum arquivo encontrado</p>';
+                    }
+                } else {
+                    html += '<p class="error">O diretório /uploads/timeline/ não existe!</p>';
+                }
+                
+                if (data.uploadsDirExists) {
+                    html += '<h4>Diretório /uploads/</h4>';
+                    if (data.uploadsFiles.length > 0) {
+                        html += '<ul>';
+                        data.uploadsFiles.forEach(file => {
+                            if (file !== 'timeline') { // Não listar a pasta timeline
+                                html += `<li><a href="#" class="file-link" data-path="${file}">${file}</a></li>`;
+                            }
+                        });
+                        html += '</ul>';
+                    } else {
+                        html += '<p>Nenhum arquivo encontrado</p>';
+                    }
+                } else {
+                    html += '<p class="error">O diretório /uploads/ não existe!</p>';
+                }
+                
+                fileListContainer.innerHTML = html;
+                
+                // Adicionar eventos aos links de arquivo
+                document.querySelectorAll('.file-link').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const filename = link.getAttribute('data-path');
+                        document.getElementById('fileInput').value = filename;
+                        document.getElementById('viewFileBtn').click();
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Erro ao carregar arquivos:', error);
+                document.getElementById('fileListContainer').innerHTML = 
+                    `<p class="error">Erro ao carregar lista de arquivos: ${error.message}</p>`;
+                document.getElementById('fileListContainer').style.display = 'block';
+            }
+        });
+        
+        // Visualizar arquivo específico
+        document.getElementById('viewFileBtn').addEventListener('click', () => {
+            const filename = document.getElementById('fileInput').value.trim();
+            if (!filename) return;
+            
+            const imageContainer = document.getElementById('imageContainer');
+            const filePath = document.getElementById('filePath');
+            const imageWrapper = document.getElementById('imageWrapper');
+            
+            imageContainer.style.display = 'block';
+            filePath.textContent = `/api/arquivo/${filename}`;
+            
+            // Limpar conteúdo anterior
+            imageWrapper.innerHTML = '';
+            
+            // Criar elemento de imagem
+            const img = document.createElement('img');
+            img.src = `/api/arquivo/${filename}`;
+            img.alt = filename;
+            
+            // Eventos de sucesso e erro
+            img.onload = () => {
+                imageWrapper.appendChild(img);
+                imageWrapper.innerHTML += '<p class="success">Imagem carregada com sucesso!</p>';
+            };
+            
+            img.onerror = () => {
+                imageWrapper.innerHTML = '<p class="error">Erro ao carregar a imagem. Verifique o nome do arquivo.</p>';
+            };
+            
+            imageWrapper.appendChild(img);
+        });
+    </script>
+</body>
+</html>
+  `);
+});
 
 // Configuração específica para pré-voo de upload de arquivos
 app.options('/api/files/upload', cors(corsOptions));

@@ -1,0 +1,102 @@
+// Componente melhorado para renderizar imagens com tratamento de erro
+const ImageRenderer = ({ src, alt, className }) => {
+  const [error, setError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [attemptCount, setAttemptCount] = useState(0);
+  
+  useEffect(() => {
+    setError(false);
+    setCurrentSrc(src);
+    setAttemptCount(0);
+  }, [src]);
+  
+  const handleError = () => {
+    console.log(`Erro ao carregar imagem: ${currentSrc}`);
+    
+    if (attemptCount < 4) {
+      setAttemptCount(prev => prev + 1);
+      
+      // Tentativas diferentes dependendo do contador
+      let newSrc;
+      if (attemptCount === 0) {
+        // Primeira tentativa: remover a barra inicial se tiver
+        newSrc = currentSrc.startsWith('/') ? currentSrc.substring(1) : `/${currentSrc}`;
+      } else if (attemptCount === 1) {
+        // Segunda tentativa: usar caminho com /api antes
+        newSrc = `/api${currentSrc}`;
+      } else if (attemptCount === 2) {
+        // Terceira tentativa: remover /timeline/ se tiver
+        newSrc = currentSrc.replace('/timeline/', '/');
+      } else {
+        // Quarta tentativa: simplificar para apenas o nome do arquivo
+        const filename = currentSrc.split('/').pop();
+        newSrc = `/uploads/${filename}`;
+      }
+      
+      console.log(`Tentativa ${attemptCount + 1}: Tentando caminho alternativo: ${newSrc}`);
+      setCurrentSrc(newSrc);
+    } else {
+      // Após todas as tentativas, usar uma imagem de placeholder
+      console.error(`Todas as tentativas falharam para imagem: ${src}`);
+      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+    }
+  };
+  
+  return (
+    <img 
+      src={currentSrc}
+      alt={alt}
+      className={className}
+      onError={handleError}
+    />
+  );
+};
+
+// Função ajustada para normalizar caminhos de imagens
+const normalizePath = (path) => {
+  if (!path) return '';
+
+  // Se já for um URL completo, não mudar
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  // Remover o /app/routes prefixo se existir
+  let normalizedPath = path.replace(/^\/app\/routes\//, '/');
+  
+  // Garantir que sempre comece com /
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = `/${normalizedPath}`;
+  }
+  
+  // Garantir que uploads está no caminho
+  if (!normalizedPath.includes('/uploads/')) {
+    normalizedPath = `/uploads${normalizedPath}`;
+  }
+  
+  // Garantir que timeline está no caminho
+  if (!normalizedPath.includes('/timeline/') && normalizedPath.includes('/uploads/')) {
+    normalizedPath = normalizedPath.replace('/uploads/', '/uploads/timeline/');
+  }
+  
+  console.log(`Caminho normalizado: ${path} -> ${normalizedPath}`);
+  return normalizedPath;
+};
+
+// Exemplo de uso no JSX ao renderizar imagens nos posts:
+{post.images && post.images.length > 0 && (
+  <div className={cn(
+    "grid gap-2 mb-4", 
+    post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+  )}>
+    {post.images.map((img, idx) => (
+      <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+        <ImageRenderer 
+          src={normalizePath(img)} 
+          alt={`Imagem ${idx + 1}`} 
+          className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+        />
+      </div>
+    ))}
+  </div>
+)}

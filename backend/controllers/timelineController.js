@@ -26,6 +26,7 @@ const normalizePath = (filePath) => {
   
   return normalizedPath;
 };
+
 // Obter todas as publicações
 const getPosts = async (req, res) => {
   try {
@@ -98,21 +99,44 @@ const getPosts = async (req, res) => {
 const createPost = async (req, res) => {
   try {
     const { text, eventData } = req.body;
-    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files?.length || 0, eventData: !!eventData });
+    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files ? 'Sim' : 'Não', eventData: !!eventData });
     
     if (!text && !eventData) {
       console.log('Texto vazio e sem dados de evento, rejeitando post');
       return res.status(400).json({ mensagem: 'O texto ou dados de evento são obrigatórios' });
     }
     
-    // Processar anexos se houver arquivos enviados
-    const attachments = req.files ? req.files.map(file => {
-      // Ajustar o caminho para o padrão /uploads/timeline/...
-      const filename = path.basename(file.path);
-      const normalizedPath = `/uploads/timeline/${filename}`;
-      console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath}`);
-      return normalizedPath;
-    }) : [];
+    // Verificar como os arquivos são enviados pelo Multer
+    console.log('Detalhes de req.files:', req.files);
+    
+    // Processar anexos se houver arquivos enviados - CORREÇÃO AQUI
+    let attachments = [];
+    let images = [];
+    
+    if (req.files && Array.isArray(req.files)) {
+      // Se req.files for diretamente um array
+      attachments = req.files.map(file => {
+        const filename = path.basename(file.path);
+        const normalizedPath = `/uploads/timeline/${filename}`;
+        console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath}`);
+        return normalizedPath;
+      });
+      
+      // Usar os mesmos caminhos para imagens
+      images = [...attachments];
+    } else if (req.files && req.files.attachments) {
+      // Se req.files.attachments existir (comum quando o campo do formulário é chamado "attachments")
+      const files = Array.isArray(req.files.attachments) ? req.files.attachments : [req.files.attachments];
+      attachments = files.map(file => {
+        const filename = path.basename(file.path);
+        const normalizedPath = `/uploads/timeline/${filename}`;
+        console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath}`);
+        return normalizedPath;
+      });
+      
+      // Usar os mesmos caminhos para imagens
+      images = [...attachments];
+    }
     
     console.log('Anexos processados:', attachments);
     
@@ -131,17 +155,17 @@ const createPost = async (req, res) => {
     const newPost = new Post({
       text,
       user: req.usuario.id,
-      attachments,
+      attachments, // Agora array de strings
       eventData: parsedEventData,
-      images: [...attachments] // Garantir que images tenha os mesmos valores que attachments
+      images     // Também array de strings
     });
     
     const post = await newPost.save();
     console.log('Post salvo com sucesso:', {
       id: post._id,
-      text: post.text.substring(0, 30),
-      attachments: post.attachments.length,
-      images: post.images.length
+      text: post.text ? post.text.substring(0, 30) : '',
+      attachmentsLength: post.attachments ? post.attachments.length : 0,
+      imagesLength: post.images ? post.images.length : 0
     });
     
     // Carregar informações do usuário para a resposta
@@ -150,7 +174,7 @@ const createPost = async (req, res) => {
       
     res.status(201).json(populatedPost);
   } catch (err) {
-    console.error('Erro ao criar post:', err.message);
+    console.error('Erro ao criar post:', err);
     res.status(500).json({ mensagem: 'Erro ao criar post', erro: err.message });
   }
 };

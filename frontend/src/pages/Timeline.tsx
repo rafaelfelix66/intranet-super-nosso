@@ -228,49 +228,57 @@ const fetchPosts = async () => {
 };
 
 // Componente melhorado para renderizar imagens com tratamento de erro
-	const ImageRenderer = ({ src, alt, className }) => {
-	  const [error, setError] = useState(false);
-	  const [currentSrc, setCurrentSrc] = useState(src);
-	  
-	  useEffect(() => {
-		setError(false);
-		setCurrentSrc(src);
-	  }, [src]);
-	  
-	  const handleError = () => {
-		if (!error) {
-		  // Se ainda não tentou corrigir, tenta normalizar o caminho
-		  setError(true);
-		  const correctedPath = normalizePath(src);
-		  console.log(`Erro ao carregar imagem. Tentando caminho alternativo: ${correctedPath}`);
-		  setCurrentSrc(correctedPath);
-		}
-	  };
-	  
-	  if (error && currentSrc !== src) {
-		return (
-		  <img 
-			src={currentSrc}
-			alt={alt}
-			className={className}
-			onError={() => {
-			  console.error(`Falha definitiva ao carregar imagem: ${src} -> ${currentSrc}`);
-			  // Usar uma imagem de placeholder após segunda tentativa falhar
+		const ImageRenderer = ({ src, alt, className }) => {
+		  const [error, setError] = useState(false);
+		  const [currentSrc, setCurrentSrc] = useState(src);
+		  
+		  useEffect(() => {
+			setError(false);
+			// Tenta uma variação diferente do caminho inicialmente
+			if (src && typeof src === 'string') {
+			  const filename = src.split('/').pop();
+			  if (filename) {
+				setCurrentSrc(`/api/arquivo/${filename}`);
+			  } else {
+				setCurrentSrc(src);
+			  }
+			} else {
+			  setCurrentSrc(src || '');
+			}
+		  }, [src]);
+		  
+		  const handleError = () => {
+			console.error(`Erro ao carregar imagem: ${currentSrc}`);
+			
+			// Se falhar o acesso direto via rota /api/arquivo, tentar o caminho original
+			if (currentSrc.startsWith('/api/arquivo/')) {
+			  // Tentar o caminho original
+			  console.log("Tentando o caminho original", src);
+			  setCurrentSrc(src);
+			} else {
+			  // Se ainda estiver falhando, usar imagem placeholder
+			  setError(true);
+			  console.log("Usando imagem placeholder");
 			  setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
-			}}
-		  />
-		);
-	  }
-	  
-	  return (
-		<img 
-		  src={currentSrc}
-		  alt={alt}
-		  className={className}
-		  onError={handleError}
-		/>
-	  );
-	};
+			}
+		  };
+		  
+		  return (
+			<>
+			  <img 
+				src={currentSrc}
+				alt={alt}
+				className={className}
+				onError={handleError}
+			  />
+			  {error && (
+				<div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-80 text-gray-500 text-xs p-2 text-center">
+				  Não foi possível carregar a imagem
+				</div>
+			  )}
+			</>
+		  );
+		};
 
 const createNewPostApi = async (
   text: string, 
