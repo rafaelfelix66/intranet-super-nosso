@@ -6,27 +6,38 @@ const timelineController = require('../controllers/timelineController');
 const auth = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 // Configuração do multer para uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    // Altera o destino para o novo diretório padronizado
+    const uploadDir = path.join(__dirname, '../uploads/timeline');
+    // Garante que o diretório existe
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${file.originalname}`;
+    const fullPath = path.join(path.join(__dirname, '../uploads/timeline'), uniqueFilename);
+    console.log(`Tentando salvar arquivo em: ${fullPath}`);
+    cb(null, uniqueFilename);
   }
 });
 // Filtro para tipos de arquivo
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|mp4|webm|pdf|doc|docx/;
+  const allowedTypes = /jpeg|jpg|png|gif|mp4|webm|pdf|doc|docx|avi|mov|wmv/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
   
   if (extname && mimetype) {
     return cb(null, true);
-  } else {
-    cb(new Error('Tipo de arquivo não suportado'), false);
   }
+  
+  cb(new Error('Tipo de arquivo não suportado'), false);
 };
+
 const upload = multer({ 
   storage, 
   fileFilter,

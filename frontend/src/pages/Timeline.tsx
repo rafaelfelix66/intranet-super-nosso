@@ -46,7 +46,9 @@ import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/components/ui/use-toast";
+import { api } from '@/services/api';
 
+// Interfaces
 interface PostComment {
   id: string;
   user: {
@@ -79,11 +81,221 @@ interface Post {
   };
 }
 
-// Criamos dados iniciais vazios em vez de usar samplePosts
+// Dados iniciais
 const initialPosts: Post[] = [];
 
-const API_URL = "http://127.0.0.1:3000/api";
+// Funções auxiliares integradas
+const getInitials = (name: string) => {
+  if (!name) return '??';
+  return name
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase()
+    .substring(0, 2);
+};
 
+const formatTimestamp = (date: string | Date) => {
+  if (!date) return 'algum momento';
+  
+  const now = new Date();
+  const postDate = new Date(date);
+  const diff = Math.floor((now.getTime() - postDate.getTime()) / 1000);
+  
+  if (diff < 60) {
+    return 'agora';
+  } else if (diff < 3600) {
+    const minutes = Math.floor(diff / 60);
+    return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'} atrás`;
+  } else if (diff < 86400) {
+    const hours = Math.floor(diff / 3600);
+    return `${hours} ${hours === 1 ? 'hora' : 'horas'} atrás`;
+  } else if (diff < 604800) {
+    const days = Math.floor(diff / 86400);
+    return `${days} ${days === 1 ? 'dia' : 'dias'} atrás`;
+  } else {
+    return new Date(date).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
+};
+
+// Funções de integração com a API
+const fetchPosts = async () => {
+  try {
+    const data = await api.get('/timeline');
+    
+    if (Array.isArray(data)) {
+      const userId = localStorage.getItem('userId');
+      console.log("ID do usuário atual:", userId);
+      
+      const formattedPosts = data.map(post => {
+        console.log(`Post ${post._id} - curtidas:`, post.likes);
+        
+        const formattedPost = {
+          id: post._id,
+          user: {
+            name: post.user?.nome || 'Usuário',
+            initials: getInitials(post.user?.nome || 'Usuário')
+          },
+          content: post.text,
+          timestamp: formatTimestamp(post.createdAt),
+          likes: post.likes?.length || 0,
+          comments: (post.comments || []).map(comment => ({
+            id: comment._id,
+            user: {
+              name: comment.user?.nome || 'Usuário',
+              initials: getInitials(comment.user?.nome || 'Usuário')
+            },
+            content: comment.text,
+            timestamp: formatTimestamp(comment.createdAt)
+          })),
+          liked: post.likes?.some(like => 
+            like.toString() === userId || 
+            like === userId
+          ) || false
+        };
+        
+        if (post.attachments && post.attachments.length > 0) {
+          const imageAttachments = post.attachments.filter(att => 
+            att.contentType && att.contentType.startsWith('image/'));
+          if (imageAttachments.length > 0) {
+            formattedPost.images = imageAttachments.map(img => `/uploads/${img.type}`);
+          }
+          
+          const videoAttachment = post.attachments.find(att => 
+            att.contentType && att.contentType.startsWith('video/'));
+          if (videoAttachment) {
+            formattedPost.video = `/uploads/${videoAttachment.type}`;
+          }
+        }
+        
+        if (post.eventData) {
+          try {
+            formattedPost.event = typeof post.eventData === 'string' 
+              ? JSON.parse(post.eventData)
+              : post.eventData;
+          } catch (e) {
+            console.error('Erro ao processar dados do evento:', e);
+          }
+        }
+        
+        return formattedPost;
+      });
+      
+      return formattedPosts;
+    } else {
+      console.error('Resposta do backend não é um array:', data);
+      return [];
+    }
+  } catch (error) {
+    console.error('Erro ao carregar posts:', error);
+    throw new Error('Não foi possível carregar os posts');
+  }
+};
+
+const createNewPostApi = async (
+  text: string, 
+  files: File[], 
+  eventData?: { title: string; date: string; location: string }
+) => {
+  try {
+    const formData = new FormData();
+    
+    if (text) {
+      formData.append('text', text);
+    }
+    
+    if (files.length > 0) {
+      files.forEach(file => {
+        formData.append('attachments', file);
+      });
+    }
+    
+    if (eventData) {
+      formData.append('eventData', JSON.stringify(eventData));
+    }
+    
+    const data = await api.upload('/timeline', formData);
+    
+    const formattedPost = {
+      id: data._id,
+      user: {
+        name: data.user?.nome || 'Você',
+        initials: data.user?.nome ? getInitials(data.user.nome) : 'VC'
+      },
+      content: data.text,
+      timestamp: 'agora',
+      likes: data.likes?.length || 0,
+      comments: [],
+      liked: false
+    };
+    
+    if (data.attachments && data.attachments.length > 0) {
+      const imageAttachments = data.attachments.filter(att => 
+        att.contentType && att.contentType.startsWith('image/'));
+      if (imageAttachments.length > 0) {
+        formattedPost.images = imageAttachments.map(img => `/uploads/${img.type}`);
+      }
+      
+      const videoAttachment = data.attachments.find(att => 
+        att.contentType && att.contentType.startsWith('video/'));
+      if (videoAttachment) {
+        formattedPost.video = `/uploads/${videoAttachment.type}`;
+      }
+    }
+    
+    if (data.eventData) {
+      try {
+        formattedPost.event = typeof data.eventData === 'string' 
+          ? JSON.parse(data.eventData)
+          : data.eventData;
+      } catch (e) {
+        console.error('Erro ao processar dados do evento:', e);
+      }
+    }
+    
+    return formattedPost;
+  } catch (error) {
+    console.error('Erro ao criar post:', error);
+    throw new Error('Não foi possível criar a publicação');
+  }
+};
+
+const toggleLikePost = async (postId: string) => {
+  try {
+    const updatedLikes = await api.put(`/timeline/${postId}/like`);
+    return updatedLikes;
+  } catch (error) {
+    console.error('Erro ao curtir post:', error);
+    throw new Error('Não foi possível curtir a publicação');
+  }
+};
+
+const addComment = async (postId: string, text: string) => {
+  try {
+    const updatedPost = await api.post(`/timeline/${postId}/comment`, { text });
+    
+    const formattedComments = updatedPost.comments.map(comment => ({
+      id: comment._id,
+      user: {
+        name: comment.user?.nome || 'Usuário',
+        initials: getInitials(comment.user?.nome || 'Usuário')
+      },
+      content: comment.text,
+      timestamp: formatTimestamp(comment.createdAt)
+    }));
+    
+    return formattedComments;
+  } catch (error) {
+    console.error('Erro ao adicionar comentário:', error);
+    throw new Error('Não foi possível adicionar o comentário');
+  }
+};
+
+// Componente Timeline
 const Timeline = () => {
   const [posts, setPosts] = useState<Post[]>(initialPosts);
   const [commentInput, setCommentInput] = useState<Record<string, string>>({});
@@ -105,9 +317,8 @@ const Timeline = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
 
-  // Carregar posts do backend ao montar o componente
   useEffect(() => {
-    const fetchPosts = async () => {
+    const loadPosts = async () => {
       if (!token) {
         console.error('Token não encontrado');
         navigate('/login');
@@ -116,102 +327,11 @@ const Timeline = () => {
 
       setLoading(true);
       setError(null);
-      
+
       try {
-        console.log('Tentando buscar posts do backend...');
-        
-        // Use explicitamente a URL completa em vez de depender da variável API_URL
-        const response = await fetch('http://127.0.0.1:3000/api/timeline', {
-          method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-          }
-        });
-        
-        console.log('Status da resposta:', response.status);
-        
-        if (!response.ok) {
-          throw new Error(`Erro ao carregar posts: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('Posts recebidos do backend:', data);
-        
-        if (Array.isArray(data)) {
-          // Garantir que o ID do usuário esteja sendo armazenado corretamente e usado para verificar curtidas
-          const userId = localStorage.getItem('userId');
-          console.log("ID do usuário atual:", userId);
-          
-          // Converter para o formato do frontend
-          const formattedPosts: Post[] = data.map(post => {
-            // Adicionar log para cada post para depuração
-            console.log(`Post ${post._id} - curtidas:`, post.likes);
-            
-            return {
-              id: post._id,
-              user: {
-                name: post.user?.nome || 'Usuário',
-                initials: getInitials(post.user?.nome || 'Usuário')
-              },
-              content: post.text,
-              timestamp: formatTimestamp(post.createdAt),
-              likes: post.likes?.length || 0,
-              comments: (post.comments || []).map(comment => ({
-                id: comment._id,
-                user: {
-                  name: comment.user?.nome || 'Usuário',
-                  initials: getInitials(comment.user?.nome || 'Usuário')
-                },
-                content: comment.text,
-                timestamp: formatTimestamp(comment.createdAt)
-              })),
-              liked: post.likes?.some(like => 
-                like.toString() === userId || 
-                like === userId
-              ) || false
-            };
-          });
-          
-          // Processar anexos
-          formattedPosts.forEach(post => {
-            const postData = data.find(p => p._id === post.id);
-            if (postData?.attachments && postData.attachments.length > 0) {
-              // Imagens
-              const imageAttachments = postData.attachments.filter(att => 
-                att.contentType && att.contentType.startsWith('image/'));
-              if (imageAttachments.length > 0) {
-                post.images = imageAttachments.map(img => img.type);
-              }
-              
-              // Vídeos
-              const videoAttachment = postData.attachments.find(att => 
-                att.contentType && att.contentType.startsWith('video/'));
-              if (videoAttachment) {
-                post.video = videoAttachment.type;
-              }
-            }
-            
-            // Evento
-            if (postData.eventData) {
-              try {
-                post.event = typeof postData.eventData === 'string' 
-                  ? JSON.parse(postData.eventData)
-                  : postData.eventData;
-              } catch (e) {
-                console.error('Erro ao processar dados do evento:', e);
-              }
-            }
-          });
-          
-          setPosts(formattedPosts);
-          console.log('Posts formatados:', formattedPosts);
-        } else {
-          console.error('Resposta do backend não é um array:', data);
-          setPosts([]);
-        }
+        const fetchedPosts = await fetchPosts();
+        setPosts(fetchedPosts);
       } catch (error) {
-        console.error('Erro ao carregar posts:', error);
         setError('Não foi possível carregar os posts');
         toast({ 
           title: "Erro", 
@@ -222,47 +342,17 @@ const Timeline = () => {
         setLoading(false);
       }
     };
-    
-    fetchPosts();
-  }, [token, navigate]);
-  
-  // Formatar timestamp para exibição
-  const formatTimestamp = (date: string | Date) => {
-    if (!date) return 'algum momento';
-    
-    const now = new Date();
-    const postDate = new Date(date);
-    const diff = Math.floor((now.getTime() - postDate.getTime()) / 1000); // diferença em segundos
-    
-    if (diff < 60) {
-      return 'agora';
-    } else if (diff < 3600) {
-      const minutes = Math.floor(diff / 60);
-      return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'} atrás`;
-    } else if (diff < 86400) {
-      const hours = Math.floor(diff / 3600);
-      return `${hours} ${hours === 1 ? 'hora' : 'horas'} atrás`;
-    } else if (diff < 604800) {
-      const days = Math.floor(diff / 86400);
-      return `${days} ${days === 1 ? 'dia' : 'dias'} atrás`;
-    } else {
-      // Formatar data completa para posts mais antigos
-      return new Date(date).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-    }
-  };
 
-  // Criar novo post com envio ao backend
+    loadPosts();
+  }, [token, navigate]);
+
   const createNewPost = async () => {
     if (!token) {
       console.error('Token não encontrado');
       navigate('/login');
       return;
     }
-    
+
     if (!newPostContent.trim() && !showEventForm) {
       toast({
         title: "Conteúdo vazio",
@@ -271,7 +361,7 @@ const Timeline = () => {
       });
       return;
     }
-    
+
     if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
       toast({
         title: "Detalhes do evento incompletos",
@@ -280,83 +370,23 @@ const Timeline = () => {
       });
       return;
     }
-    
+
     try {
-      // Criar FormData para envio de arquivos
-      const formData = new FormData();
-      formData.append('text', newPostContent);
-      
-      // Adicionar arquivos se existirem
-      selectedImages.forEach(image => {
-        formData.append('attachments', image);
-      });
-      
-      if (selectedVideo) {
-        formData.append('attachments', selectedVideo);
-      }
-      
-      // Adicionar dados do evento se existirem
-      if (showEventForm && eventDate) {
-        const eventData = {
-          title: eventTitle,
-          date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
-          location: eventLocation
-        };
-        formData.append('eventData', JSON.stringify(eventData));
-      }
-      
-      console.log('Tentando enviar post para o backend:', `${API_URL}/timeline`);
-      
-      // IMPORTANTE: Garantir que a chamada ao backend seja realmente executada
-      // e não substituída por lógica local
-      const response = await fetch('http://127.0.0.1:3000/api/timeline', {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`
-          // Não definir Content-Type aqui, FormData define automaticamente
-        },
-        body: formData
-      });
-      
-      console.log('Status da resposta:', response.status);
-      
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch (e) {
-          errorData = { mensagem: `Erro ${response.status}` };
-        }
-        console.error('Erro da resposta:', errorData);
-        throw new Error(errorData.mensagem || `Erro ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Resposta do servidor após criar post:', data);
-      
-      // Formatando o post recebido para o formato usado no frontend
-      const newPost: Post = {
-        id: data._id,
-        user: {
-          name: data.user?.nome || 'Você',
-          initials: data.user?.nome ? getInitials(data.user.nome) : 'VC'
-        },
-        content: data.text,
-        timestamp: 'agora',
-        likes: data.likes?.length || 0,
-        comments: [],
-        liked: false
-      };
-      
-      // Adicionar o novo post à lista
+      const files = selectedVideo ? [selectedVideo] : selectedImages;
+      const eventData = showEventForm && eventDate ? {
+        title: eventTitle,
+        date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
+        location: eventLocation
+      } : undefined;
+
+      const newPost = await createNewPostApi(newPostContent, files, eventData);
       setPosts(prevPosts => [newPost, ...prevPosts]);
-      
+
       toast({ 
         title: "Publicação criada", 
         description: "Sua publicação foi compartilhada com sucesso!" 
       });
-      
-      // Resetar formulário
+
       setNewPostContent("");
       setSelectedImages([]);
       setPreviewImages([]);
@@ -367,44 +397,28 @@ const Timeline = () => {
       setEventLocation("");
       setEventDate(undefined);
       setNewPostDialog(false);
-      
     } catch (error) {
       console.error('Erro ao enviar post:', error);
       toast({ 
         title: "Erro", 
-        description: typeof error === 'object' && error instanceof Error ? error.message : "Não foi possível criar a publicação.",
+        description: error instanceof Error ? error.message : "Não foi possível criar a publicação.",
         variant: "destructive" 
       });
     }
   };
-  
-  // Função auxiliar para obter iniciais de um nome
-  const getInitials = (name: string) => {
-    if (!name) return '??';
-    return name
-      .split(' ')
-      .map(part => part[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-  };
-  
-  // Implementar curtida de post com envio ao backend
+
   const handleLike = async (postId: string) => {
     if (!token) {
       console.error('Token não encontrado');
       navigate('/login');
       return;
     }
-    
-    // Obter o estado atual de curtida do post
+
     const targetPost = posts.find(p => p.id === postId);
     if (!targetPost) return;
-    
+
     const wasLiked = targetPost.liked;
-    console.log(`Curtindo post ${postId}, estado anterior: ${wasLiked ? 'curtido' : 'não curtido'}`);
-    
-    // Atualizar UI otimisticamente
+
     setPosts(prevPosts => prevPosts.map(post => {
       if (post.id === postId) {
         return {
@@ -415,44 +429,23 @@ const Timeline = () => {
       }
       return post;
     }));
-    
+
     try {
-      // Chamar API
-      const response = await fetch(`http://127.0.0.1:3000/api/timeline/${postId}/like`, {
-        method: 'PUT',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao curtir post: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Resposta de curtida:', data);
-      
-      // Verificar se o usuário atual está na lista de curtidas após a operação
+      const updatedLikes = await toggleLikePost(postId);
       const userId = localStorage.getItem('userId');
-      const isNowLiked = data.some(id => id === userId || id.toString() === userId);
-      
-      // Atualizar com os dados reais do servidor
+      const isNowLiked = updatedLikes.some(id => id === userId || id.toString() === userId);
+
       setPosts(prevPosts => prevPosts.map(post => {
         if (post.id === postId) {
           return {
             ...post,
             liked: isNowLiked,
-            likes: data.length // número real de curtidas
+            likes: updatedLikes.length
           };
         }
         return post;
       }));
-      
     } catch (error) {
-      console.error('Erro ao curtir post:', error);
-      
-      // Reverter a UI em caso de erro
       setPosts(prevPosts => prevPosts.map(post => {
         if (post.id === postId) {
           return {
@@ -463,7 +456,7 @@ const Timeline = () => {
         }
         return post;
       }));
-      
+
       toast({ 
         title: "Erro", 
         description: "Não foi possível curtir a publicação.",
@@ -471,104 +464,50 @@ const Timeline = () => {
       });
     }
   };
-  
-  // Implementar adição de comentário com envio ao backend
+
   const handleComment = async (postId: string) => {
     if (!token) {
       console.error('Token não encontrado');
       navigate('/login');
       return;
     }
-    
+
     if (!commentInput[postId]?.trim()) return;
-    
+
     const commentText = commentInput[postId];
-    
-    // Limpar input imediatamente para melhor UX
-    setCommentInput(prev => ({
-      ...prev,
-      [postId]: ''
-    }));
-    
-    // Criar um comentário temporário para atualização otimista da UI
+    setCommentInput(prev => ({ ...prev, [postId]: '' }));
+
     const tempId = `temp-${Date.now()}`;
     const tempComment = {
       id: tempId,
-      user: {
-        name: 'Você',
-        initials: 'VC'
-      },
+      user: { name: 'Você', initials: 'VC' },
       content: commentText,
       timestamp: 'agora'
     };
-    
-    // Atualizar UI otimisticamente
+
     setPosts(prevPosts => prevPosts.map(post => {
       if (post.id === postId) {
-        return {
-          ...post,
-          comments: [...post.comments, tempComment]
-        };
+        return { ...post, comments: [...post.comments, tempComment] };
       }
       return post;
     }));
-    
+
     try {
-      console.log('Enviando comentário para o backend:', { postId, text: commentText });
-      
-      // Chamada explícita ao backend
-      const response = await fetch(`http://127.0.0.1:3000/api/timeline/${postId}/comment`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ text: commentText })
-      });
-      
-      console.log('Status da resposta de comentário:', response.status);
-      
-      if (!response.ok) {
-        // Reverter UI em caso de erro
-        setPosts(prevPosts => prevPosts.map(post => {
-          if (post.id === postId) {
-            return {
-              ...post,
-              comments: post.comments.filter(c => c.id !== tempId)
-            };
-          }
-          return post;
-        }));
-        
-        throw new Error(`Erro ao adicionar comentário: ${response.status}`);
-      }
-      
-      const updatedPost = await response.json();
-      console.log('Post com novo comentário:', updatedPost);
-      
-      // Atualizar o post com os dados reais do backend
-      if (updatedPost.comments) {
-        setPosts(prevPosts => prevPosts.map(post => {
-          if (post.id === postId) {
-            return {
-              ...post,
-              comments: updatedPost.comments.map((comment: any) => ({
-                id: comment._id,
-                user: {
-                  name: comment.user?.nome || 'Usuário',
-                  initials: getInitials(comment.user?.nome || 'Usuário')
-                },
-                content: comment.text,
-                timestamp: formatTimestamp(comment.createdAt)
-              }))
-            };
-          }
-          return post;
-        }));
-      }
-      
+      const updatedComments = await addComment(postId, commentText);
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          return { ...post, comments: updatedComments };
+        }
+        return post;
+      }));
     } catch (error) {
-      console.error('Erro ao adicionar comentário:', error);
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          return { ...post, comments: post.comments.filter(c => c.id !== tempId) };
+        }
+        return post;
+      }));
+
       toast({ 
         title: "Erro", 
         description: "Não foi possível adicionar o comentário.",
@@ -580,31 +519,21 @@ const Timeline = () => {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
-      
-      // Limit to 4 images
       const newImages = filesArray.slice(0, 4);
       setSelectedImages(prevImages => [...prevImages, ...newImages].slice(0, 4));
-      
-      // Create preview URLs
       const newPreviewUrls = newImages.map(file => URL.createObjectURL(file));
       setPreviewImages(prevPreviewUrls => [...prevPreviewUrls, ...newPreviewUrls].slice(0, 4));
-      
-      // Clear the input to allow selecting the same file again
       if (e.target.value) e.target.value = '';
     }
   };
 
   const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      // If a video is selected, clear any previously selected images
       setSelectedImages([]);
       setPreviewImages([]);
-      
       const file = e.target.files[0];
       setSelectedVideo(file);
       setPreviewVideo(URL.createObjectURL(file));
-      
-      // Clear the input to allow selecting the same file again
       if (e.target.value) e.target.value = '';
     }
   };
@@ -612,13 +541,9 @@ const Timeline = () => {
   const removeImage = (index: number) => {
     const newSelectedImages = [...selectedImages];
     const newPreviewImages = [...previewImages];
-    
-    // Revoke the object URL to avoid memory leaks
     URL.revokeObjectURL(newPreviewImages[index]);
-    
     newSelectedImages.splice(index, 1);
     newPreviewImages.splice(index, 1);
-    
     setSelectedImages(newSelectedImages);
     setPreviewImages(newPreviewImages);
   };
@@ -634,13 +559,12 @@ const Timeline = () => {
   const toggleEventForm = () => {
     setShowEventForm(!showEventForm);
     if (!showEventForm) {
-      // Clear previous event details when opening the form
       setEventTitle("");
       setEventLocation("");
       setEventDate(undefined);
     }
   };
-  
+
   const filteredPosts = activeTab === "todos" 
     ? posts 
     : activeTab === "fotos" 
@@ -648,7 +572,7 @@ const Timeline = () => {
       : activeTab === "videos"
         ? posts.filter(post => post.video)
         : posts.filter(post => post.event);
-  
+
   return (
     <Layout>
       <div className="space-y-6 max-w-4xl mx-auto">
@@ -691,7 +615,6 @@ const Timeline = () => {
                   </div>
                 </div>
 
-                {/* Preview dos arquivos selecionados */}
                 {previewImages.length > 0 && (
                   <div className={cn(
                     "grid gap-2 mt-4", 
@@ -719,10 +642,7 @@ const Timeline = () => {
 
                 {previewVideo && (
                   <div className="mt-4 rounded-lg overflow-hidden relative">
-                    <video 
-                      controls 
-                      className="w-full" 
-                    >
+                    <video controls className="w-full">
                       <source src={previewVideo} type="video/mp4" />
                       Seu navegador não suporta a reprodução de vídeos.
                     </video>
@@ -737,7 +657,6 @@ const Timeline = () => {
                   </div>
                 )}
 
-                {/* Formulário do evento */}
                 {showEventForm && (
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
                     <div className="flex items-center justify-between">
@@ -754,7 +673,6 @@ const Timeline = () => {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    
                     <div className="space-y-3">
                       <div className="grid w-full items-center gap-1.5">
                         <Label htmlFor="event-title">Título do evento</Label>
@@ -765,7 +683,6 @@ const Timeline = () => {
                           onChange={(e) => setEventTitle(e.target.value)}
                         />
                       </div>
-                      
                       <div className="grid w-full items-center gap-1.5">
                         <Label htmlFor="event-location">Local</Label>
                         <Input
@@ -775,7 +692,6 @@ const Timeline = () => {
                           onChange={(e) => setEventLocation(e.target.value)}
                         />
                       </div>
-                      
                       <div className="grid w-full items-center gap-1.5">
                         <Label>Data</Label>
                         <Popover>
@@ -809,7 +725,6 @@ const Timeline = () => {
                   </div>
                 )}
 
-                {/* Botões para adicionar mídia */}
                 <div className="flex gap-2">
                   <input 
                     type="file" 
@@ -832,7 +747,6 @@ const Timeline = () => {
                       "Adicionar Fotos"
                     }
                   </Button>
-                  
                   <input 
                     type="file" 
                     ref={videoInputRef}
@@ -850,7 +764,6 @@ const Timeline = () => {
                     <Film className="mr-2 h-4 w-4" />
                     {selectedVideo ? "Vídeo Selecionado" : "Adicionar Vídeo"}
                   </Button>
-                  
                   <Button 
                     variant="outline" 
                     className={cn(
@@ -933,7 +846,6 @@ const Timeline = () => {
                           <CardDescription>{post.timestamp}</CardDescription>
                         </div>
                       </div>
-                      
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -947,10 +859,8 @@ const Timeline = () => {
                       </DropdownMenu>
                     </div>
                   </CardHeader>
-                  
                   <CardContent className="pb-3">
                     <p className="mb-4 whitespace-pre-line">{post.content}</p>
-                    
                     {post.event && (
                       <div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
                         <div className="flex items-center">
@@ -963,7 +873,6 @@ const Timeline = () => {
                         </div>
                       </div>
                     )}
-                    
                     {post.images && post.images.length > 0 && (
                       <div className={cn(
                         "grid gap-2 mb-4", 
@@ -980,7 +889,6 @@ const Timeline = () => {
                         ))}
                       </div>
                     )}
-                    
                     {post.video && (
                       <div className="mb-4 rounded-lg overflow-hidden">
                         <video 
@@ -998,7 +906,6 @@ const Timeline = () => {
                       <div>{post.comments.length} comentários</div>
                     </div>
                   </CardContent>
-                  
                   <CardFooter className="flex flex-col space-y-4">
                     <div className="flex justify-around w-full border-y py-1">
                       <Button 
@@ -1017,7 +924,6 @@ const Timeline = () => {
                         Comentar
                       </Button>
                     </div>
-                    
                     {post.comments.length > 0 && (
                       <div className="space-y-3 w-full">
                         {post.comments.map((comment) => (
@@ -1043,7 +949,6 @@ const Timeline = () => {
                         ))}
                       </div>
                     )}
-                    
                     <div className="flex space-x-3 w-full">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-[#e60909] text-white text-xs">
@@ -1110,22 +1015,13 @@ const Timeline = () => {
               </div>
             )}
           </TabsContent>
-          
-          <TabsContent value="fotos" className="space-y-6">
-            {/* Conteúdo filtrado já renderizado na aba "todos" */}
-          </TabsContent>
-          
-          <TabsContent value="videos" className="space-y-6">
-            {/* Conteúdo filtrado já renderizado na aba "todos" */}
-          </TabsContent>
-          
-          <TabsContent value="eventos" className="space-y-6">
-            {/* Conteúdo filtrado já renderizado na aba "todos" */}
-          </TabsContent>
+          <TabsContent value="fotos" className="space-y-6" />
+          <TabsContent value="videos" className="space-y-6" />
+          <TabsContent value="eventos" className="space-y-6" />
         </Tabs>
       </div>
     </Layout>
   );
 };
 
-export default Timeline;					
+export default Timeline;

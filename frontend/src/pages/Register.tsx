@@ -1,3 +1,4 @@
+// src/pages/Register.tsx - Versão atualizada
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -13,6 +14,8 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [cargo, setCargo] = useState("");
+  const [departamento, setDepartamento] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { register } = useAuth();
   const { toast } = useToast();
@@ -32,7 +35,7 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      await register(name, email, password);
+      await register(name, email, password, cargo, departamento);
       toast({
         title: "Registro bem-sucedido",
         description: "Sua conta foi criada com sucesso!",
@@ -93,6 +96,24 @@ export default function Register() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cargo">Cargo</Label>
+                <Input 
+                  id="cargo" 
+                  placeholder="Seu cargo na empresa"
+                  value={cargo}
+                  onChange={(e) => setCargo(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="departamento">Departamento</Label>
+                <Input 
+                  id="departamento" 
+                  placeholder="Seu departamento"
+                  value={departamento}
+                  onChange={(e) => setDepartamento(e.target.value)}
                 />
               </div>
               <div className="space-y-2">

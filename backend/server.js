@@ -20,15 +20,87 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   }
 });
+// Criar diretórios de upload necessários
+const fs = require('fs');
+
+// Criar diretórios de upload se não existirem
+const createRequiredDirs = () => {
+  const dirs = [
+    path.join(__dirname, 'uploads'),
+    path.join(__dirname, 'uploads/chat'),
+    path.join(__dirname, 'uploads/files'),
+    path.join(__dirname, 'uploads/knowledge')
+  ];
+  
+  dirs.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`Diretório ${dir} criado com sucesso`);
+    }
+  });
+};
+
+createRequiredDirs();
+
+// Configuração de CORS para desenvolvimento e produção
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'http://localhost:8080',
+      'http://127.0.0.1:8080',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    ];
+    
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Origem não permitida pelo CORS'));
+    }
+  },
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  exposedHeaders: ['Content-Length', 'X-Requested-With', 'Authorization'],
+  optionsSuccessStatus: 204
+};
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*', // Permite todas as origens
+  // Ou específico para o frontend:
+  // origin: 'http://localhost:80',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeline')));
 
+// Para depuração, adicione este middleware
+app.use('/uploads/*', (req, res, next) => {
+  console.log('Tentando acessar arquivo estático:', req.url);
+  const filePath = path.join(__dirname, req.url);
+  console.log('Verificando se existe:', filePath);
+  if (fs.existsSync(filePath)) {
+    console.log('Arquivo encontrado!');
+  } else {
+    console.log('Arquivo não encontrado!');
+  }
+  next();
+});
 
-
+// Middleware para logging de requisições
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`, {
+    headers: {
+      'content-type': req.headers['content-type'],
+      'authorization': req.headers['authorization'] ? 'Bearer [REDACTED]' : 'none'
+    },
+    body: req.body ? '[PRESENT]' : '[EMPTY]'
+  });
+  next();
+});
 
 // Configuração do MongoDB
 const mongoURI = process.env.MONGODB_URI || 'mongodb://admin:admin123@mongodb:27017/intranet?authSource=admin';
@@ -37,8 +109,6 @@ mongoose
   .connect(mongoURI)
   .then(() => console.log('Conectado ao MongoDB'))
   .catch((err) => console.error('Erro ao conectar ao MongoDB:', err));
-
-
 
 // Configuração do multer para upload de arquivos
 const storage = multer.diskStorage({
@@ -58,8 +128,8 @@ app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/files', require('./routes/files'));
 
-// Pasta para arquivos estáticos
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Configuração específica para pré-voo de upload de arquivos
+app.options('/api/files/upload', cors(corsOptions));
 
 // Middleware para verificar token (unificado)
 const verificarToken = (req, res, next) => {
@@ -355,10 +425,13 @@ io.on('connection', (socket) => {
 });
 
 // Criar pasta de uploads se não existir
-const fs = require('fs');
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+}
+const timelineUploadsDir = path.join(uploadsDir, 'timeline');
+if (!fs.existsSync(timelineUploadsDir)) {
+  fs.mkdirSync(timelineUploadsDir, { recursive: true });
 }
 
 // Iniciar servidor

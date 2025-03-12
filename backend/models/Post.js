@@ -9,14 +9,16 @@ const PostSchema = new mongoose.Schema({
   },
   text: {
     type: String,
-    required: true
+    default: ""
   },
   attachments: [{
     type: String, // caminho do arquivo
-    contentType: String // tipo de conteúdo (imagem, vídeo, etc.)
+    contentType: String, // tipo de conteúdo (imagem, vídeo, etc.)
+    name: String // nome original do arquivo
   }],
   eventData: {
-    type: mongoose.Schema.Types.Mixed // Para armazenar dados de evento (título, data, local)
+    type: mongoose.Schema.Types.Mixed, // Para armazenar dados de evento (título, data, local)
+    default: null
   },
   likes: [{
     type: mongoose.Schema.Types.ObjectId,
