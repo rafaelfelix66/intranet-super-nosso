@@ -122,24 +122,31 @@ const formatTimestamp = (date: string | Date) => {
   }
 };
 
+// Determinar o URL base para as imagens com base no ambiente
+const getBaseUrl = () => {
+  if (window.location.hostname !== 'localhost') {
+    return '';  // Em produção, os caminhos são relativos
+  }
+  return 'http://localhost:3000'; // Em desenvolvimento local
+};
+
 // Funções de integração com a API
 const normalizePath = (path: string): string => {
-  // Remover o /app/routes prefixo se existir
-  let normalizedPath = path.replace(/^\/app\/routes\//, '/');
+  if (!path) return '';
   
-  // Garantir que sempre comece com /uploads/
-  if (!normalizedPath.startsWith('/uploads/')) {
-    if (normalizedPath.startsWith('/')) {
-      normalizedPath = `/uploads${normalizedPath}`;
-    } else {
-      normalizedPath = `/uploads/${normalizedPath}`;
-    }
+  // Não modificar URLs absolutas
+  if (path.startsWith('http')) {
+    return path;
   }
   
-  // Garantir que /uploads/timeline/ esteja no caminho
-  if (!normalizedPath.includes('/uploads/timeline/') && normalizedPath.startsWith('/uploads/')) {
-    normalizedPath = normalizedPath.replace('/uploads/', '/uploads/timeline/');
+  // Garantir que o caminho comece com /
+  let normalizedPath = path;
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = `/${normalizedPath}`;
   }
+  
+  // Não precisamos alterar o caminho, apenas retorná-lo como está
+  // O componente ImageRenderer vai lidar com a conversão para URL completa
   
   console.log(`Caminho normalizado: ${path} -> ${normalizedPath}`);
   return normalizedPath;
@@ -155,9 +162,11 @@ const fetchPosts = async () => {
       
       const formattedPosts = data.map(post => {
         console.log(`Post ${post._id}:`, {
-          text: post.text.substring(0, 30),
+          text: post.text ? post.text.substring(0, 30) : "Sem texto",
           hasAttachments: !!post.attachments && post.attachments.length > 0,
-          hasImages: !!post.images && post.images.length > 0
+          hasImages: !!post.images && post.images.length > 0,
+          attachments: post.attachments,
+          images: post.images
         });
         
         const formattedPost = {
@@ -166,7 +175,7 @@ const fetchPosts = async () => {
             name: post.user?.nome || 'Usuário',
             initials: getInitials(post.user?.nome || 'Usuário')
           },
-          content: post.text,
+          content: post.text || "",
           timestamp: formatTimestamp(post.createdAt),
           likes: post.likes?.length || 0,
           comments: (post.comments || []).map(comment => ({
@@ -188,16 +197,26 @@ const fetchPosts = async () => {
         // Processamento de attachments e images
         // Primeiro, verificar campo images
         if (post.images && post.images.length > 0) {
-          formattedPost.images = post.images.map(img => 
-            typeof img === 'string' ? normalizePath(img) : ''
-          ).filter(Boolean);
+          formattedPost.images = post.images
+            .filter(img => img) // Filtrar valores vazios
+            .map(img => typeof img === 'string' ? normalizePath(img) : 
+                       (img.type ? normalizePath(img.type) : ''))
+            .filter(Boolean);
         }
         
         // Se images estiver vazio, tentar attachments
-        if (formattedPost.images.length === 0 && post.attachments && post.attachments.length > 0) {
-          formattedPost.images = post.attachments.map(attachment => 
-            typeof attachment === 'string' ? normalizePath(attachment) : ''
-          ).filter(Boolean);
+        if ((!formattedPost.images || formattedPost.images.length === 0) && post.attachments && post.attachments.length > 0) {
+          formattedPost.images = post.attachments
+            .filter(attachment => attachment) // Filtrar valores vazios
+            .map(attachment => {
+              if (typeof attachment === 'string') {
+                return normalizePath(attachment);
+              } else if (attachment.type) {
+                return normalizePath(attachment.type);
+              }
+              return '';
+            })
+            .filter(Boolean);
         }
         
         console.log(`Post ${post._id} - imagens processadas:`, formattedPost.images);
@@ -228,57 +247,85 @@ const fetchPosts = async () => {
 };
 
 // Componente melhorado para renderizar imagens com tratamento de erro
-		const ImageRenderer = ({ src, alt, className }) => {
-		  const [error, setError] = useState(false);
-		  const [currentSrc, setCurrentSrc] = useState(src);
-		  
-		  useEffect(() => {
-			setError(false);
-			// Tenta uma variação diferente do caminho inicialmente
-			if (src && typeof src === 'string') {
-			  const filename = src.split('/').pop();
-			  if (filename) {
-				setCurrentSrc(`/api/arquivo/${filename}`);
-			  } else {
-				setCurrentSrc(src);
-			  }
-			} else {
-			  setCurrentSrc(src || '');
-			}
-		  }, [src]);
-		  
-		  const handleError = () => {
-			console.error(`Erro ao carregar imagem: ${currentSrc}`);
-			
-			// Se falhar o acesso direto via rota /api/arquivo, tentar o caminho original
-			if (currentSrc.startsWith('/api/arquivo/')) {
-			  // Tentar o caminho original
-			  console.log("Tentando o caminho original", src);
-			  setCurrentSrc(src);
-			} else {
-			  // Se ainda estiver falhando, usar imagem placeholder
-			  setError(true);
-			  console.log("Usando imagem placeholder");
-			  setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
-			}
-		  };
-		  
-		  return (
-			<>
-			  <img 
-				src={currentSrc}
-				alt={alt}
-				className={className}
-				onError={handleError}
-			  />
-			  {error && (
-				<div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-80 text-gray-500 text-xs p-2 text-center">
-				  Não foi possível carregar a imagem
-				</div>
-			  )}
-			</>
-		  );
-		};
+const ImageRenderer = ({ src, alt, className }) => {
+  const [error, setError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState<string>("");
+  
+  // Determinar URL base dependendo do ambiente
+  const getAPIBaseUrl = () => {
+    // Em ambiente de produção (dentro de containers Docker), a URL base é vazia
+    // porque o proxy Nginx cuida do roteamento
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return '';
+    }
+    
+    // Em desenvolvimento local precisamos do endereço completo
+    return 'http://localhost:3000';
+  };
+  
+  useEffect(() => {
+    setError(false);
+    
+    const apiBase = getAPIBaseUrl();
+    
+    if (!src || typeof src !== 'string') {
+      setError(true);
+      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+      return;
+    }
+    
+    // Estratégia de tentativas:
+    // 1. Primeiro, tentar o caminho original com o apiBase
+    setCurrentSrc(`${apiBase}${src}`);
+    
+    // Logs para debug
+    console.log('Caminho da imagem:', {
+      original: src,
+      normalizado: `${apiBase}${src}`
+    });
+  }, [src]);
+  
+  const handleError = () => {
+    console.error(`Erro ao carregar imagem: ${currentSrc}`);
+    const apiBase = getAPIBaseUrl();
+    
+    // Se falhou com o primeiro caminho, tentar uma série de alternativas
+    if (currentSrc.includes(`${apiBase}${src}`)) {
+      // Tentar sem o apiBase (para caso do proxy Nginx estar lidando com isso)
+      const pathOnly = src;
+      console.log("Tentando caminho direto:", pathOnly);
+      setCurrentSrc(pathOnly);
+    } 
+    else if (currentSrc === src) {
+      // Tentar via /api como proxy
+      const apiPath = `/api${src}`;
+      console.log("Tentando caminho via /api:", apiPath);
+      setCurrentSrc(apiPath);
+    }
+    else {
+      // Se todas as tentativas falharem, usar um placeholder
+      setError(true);
+      console.log("Usando imagem placeholder");
+      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+    }
+  };
+  
+  return (
+    <>
+      <img 
+        src={currentSrc}
+        alt={alt}
+        className={className}
+        onError={handleError}
+      />
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-80 text-gray-500 text-xs p-2 text-center">
+          Não foi possível carregar a imagem
+        </div>
+      )}
+    </>
+  );
+};
 
 const createNewPostApi = async (
   text: string, 
@@ -302,7 +349,14 @@ const createNewPostApi = async (
       formData.append('eventData', JSON.stringify(eventData));
     }
     
+    console.log("Enviando formData:", {
+      text,
+      filesCount: files.length,
+      eventData: eventData ? 'presente' : 'ausente'
+    });
+    
     const data = await api.upload('/timeline', formData);
+    console.log("Resposta do servidor:", data);
     
     const formattedPost = {
       id: data._id,
@@ -310,25 +364,24 @@ const createNewPostApi = async (
         name: data.user?.nome || 'Você',
         initials: data.user?.nome ? getInitials(data.user.nome) : 'VC'
       },
-      content: data.text,
+      content: data.text || "",
       timestamp: 'agora',
       likes: data.likes?.length || 0,
       comments: [],
-      liked: false
+      liked: false,
+      images: []
     };
     
+    // Processar imagens/anexos
     if (data.attachments && data.attachments.length > 0) {
-      const imageAttachments = data.attachments.filter(att => 
-        att.contentType && att.contentType.startsWith('image/'));
-      if (imageAttachments.length > 0) {
-        formattedPost.images = imageAttachments.map(img => `/uploads/${img.type}`);
-      }
-      
-      const videoAttachment = data.attachments.find(att => 
-        att.contentType && att.contentType.startsWith('video/'));
-      if (videoAttachment) {
-        formattedPost.video = `/uploads/${videoAttachment.type}`;
-      }
+      formattedPost.images = data.attachments.map(att => {
+        if (typeof att === 'string') {
+          return normalizePath(att);
+        } else if (att.type) {
+          return normalizePath(att.type);
+        }
+        return '';
+      }).filter(Boolean);
     }
     
     if (data.eventData) {
@@ -958,21 +1011,21 @@ const Timeline = () => {
                       </div>
                     )}
                     {post.images && post.images.length > 0 && (
-					  <div className={cn(
-						"grid gap-2 mb-4", 
-						post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
-					  )}>
-						{post.images.map((img, idx) => (
-						  <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-							<ImageRenderer 
-							  src={img} 
-							  alt={`Imagem ${idx + 1}`} 
-							  className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-							/>
-						  </div>
-						))}
-					  </div>
-					)}
+                      <div className={cn(
+                        "grid gap-2 mb-4", 
+                        post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                      )}>
+                        {post.images.map((img, idx) => (
+                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+                            <ImageRenderer 
+                              src={img} 
+                              alt={`Imagem ${idx + 1}`} 
+                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {post.video && (
                       <div className="mb-4 rounded-lg overflow-hidden">
                         <video 
