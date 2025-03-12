@@ -17,6 +17,7 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+	console.log('Formulário submetido:', { email, password });
     setIsSubmitting(true);
 
     try {

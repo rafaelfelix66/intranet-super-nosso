@@ -250,66 +250,29 @@ const fetchPosts = async () => {
 const ImageRenderer = ({ src, alt, className }) => {
   const [error, setError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string>("");
-  
-  // Determinar URL base dependendo do ambiente
-  const getAPIBaseUrl = () => {
-    // Em ambiente de produção (dentro de containers Docker), a URL base é vazia
-    // porque o proxy Nginx cuida do roteamento
-    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      return '';
-    }
-    
-    // Em desenvolvimento local precisamos do endereço completo
-    return 'http://localhost:3000';
-  };
-  
+
   useEffect(() => {
     setError(false);
-    
-    const apiBase = getAPIBaseUrl();
-    
     if (!src || typeof src !== 'string') {
       setError(true);
       setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
       return;
     }
-    
-    // Estratégia de tentativas:
-    // 1. Primeiro, tentar o caminho original com o apiBase
-    setCurrentSrc(`${apiBase}${src}`);
-    
-    // Logs para debug
+    // Usar o caminho relativo para que o proxy (Nginx) redirecione para o backend
+    const fullSrc = `http://127.0.0.1${src}`; // Ex.: "/uploads/timeline/..."
     console.log('Caminho da imagem:', {
       original: src,
-      normalizado: `${apiBase}${src}`
+      normalizado: fullSrc
     });
+    setCurrentSrc(fullSrc);
   }, [src]);
-  
+
   const handleError = () => {
     console.error(`Erro ao carregar imagem: ${currentSrc}`);
-    const apiBase = getAPIBaseUrl();
-    
-    // Se falhou com o primeiro caminho, tentar uma série de alternativas
-    if (currentSrc.includes(`${apiBase}${src}`)) {
-      // Tentar sem o apiBase (para caso do proxy Nginx estar lidando com isso)
-      const pathOnly = src;
-      console.log("Tentando caminho direto:", pathOnly);
-      setCurrentSrc(pathOnly);
-    } 
-    else if (currentSrc === src) {
-      // Tentar via /api como proxy
-      const apiPath = `/api${src}`;
-      console.log("Tentando caminho via /api:", apiPath);
-      setCurrentSrc(apiPath);
-    }
-    else {
-      // Se todas as tentativas falharem, usar um placeholder
-      setError(true);
-      console.log("Usando imagem placeholder");
-      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
-    }
+    setError(true);
+    setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
   };
-  
+
   return (
     <>
       <img 

@@ -3,6 +3,7 @@ import axios from 'axios';
 
 // Função para determinar a URL da API com base no ambiente
 const getAuthUrl = (endpoint: string) => {
+	console.log('Dados enviados para /api/auth/login:', { email, password });
   // Em produção, usamos o proxy configurado no nginx
   if (window.location.hostname !== 'localhost') {
     return `/api/auth${endpoint}`;
@@ -15,7 +16,7 @@ export async function loginUser(email: string, password: string) {
   try {
     const response = await axios.post(getAuthUrl('/login'), { 
       email, 
-      senha: password // Ajustado para corresponder ao backend
+      password // Ajustado para corresponder ao backend
     });
     
     // Armazenar o token e o ID do usuário
@@ -45,7 +46,7 @@ export async function registerUser(
     const response = await axios.post(getAuthUrl('/register'), { 
       nome, 
       email, 
-      senha: password, // Ajustado para corresponder ao backend
+      password, // Ajustado para corresponder ao backend
       cargo,
       departamento
     });
