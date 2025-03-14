@@ -1,4 +1,4 @@
-
+//src/components/file-storage/NewFolderDialog.tsx
 import React, { useState } from "react";
 import { 
   Dialog,
@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Folder } from "lucide-react";
 import { useFiles } from "@/contexts/FileContext";
-import { toast } from "sonner";
 
 interface NewFolderDialogProps {
   isOpen: boolean;
@@ -22,16 +21,12 @@ interface NewFolderDialogProps {
 
 export const NewFolderDialog = ({ isOpen, onOpenChange }: NewFolderDialogProps) => {
   const [folderName, setFolderName] = useState("");
-  const { createNewFolder } = useFiles();
+  const { createNewFolder, isLoading } = useFiles();
   
-  const handleCreateFolder = () => {
-    if (!folderName.trim()) {
-      toast.error("O nome da pasta não pode estar vazio");
-      return;
-    }
+  const handleCreateFolder = async () => {
+    if (!folderName.trim()) return;
     
-    createNewFolder(folderName.trim());
-    toast.success(`Pasta "${folderName}" criada com sucesso`);
+    await createNewFolder(folderName.trim());
     setFolderName("");
     onOpenChange(false);
   };
@@ -64,14 +59,16 @@ export const NewFolderDialog = ({ isOpen, onOpenChange }: NewFolderDialogProps) 
           <Button 
             variant="outline" 
             onClick={() => onOpenChange(false)}
+            disabled={isLoading}
           >
             Cancelar
           </Button>
           <Button 
             className="bg-supernosso-green hover:bg-supernosso-green/90"
             onClick={handleCreateFolder} 
+            disabled={isLoading || !folderName.trim()}
           >
-            Criar
+            {isLoading ? "Criando..." : "Criar"}
           </Button>
         </DialogFooter>
       </DialogContent>

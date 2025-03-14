@@ -2,9 +2,9 @@
 // Para melhorar o tratamento de uploads e configuração de cabeçalhos
 
 // Detectar automaticamente o ambiente e usar o host adequado
-const getBaseUrl = () => {
+export const getBaseUrl = () => {
   // Em produção, usamos o proxy configurado no nginx
-  if (window.location.hostname !== 'localhost') {
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     return '/api';
   }
   
@@ -15,6 +15,8 @@ const getBaseUrl = () => {
 const API_BASE_URL = getBaseUrl();
 
 export const api = {
+  getBaseUrl,
+  
   get: async (endpoint: string) => {
     const token = localStorage.getItem('token');
     
@@ -151,7 +153,7 @@ export const api = {
     
     try {
       console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
-      console.log('FormData contém arquivos:', formData.getAll('attachments').length);
+      console.log('FormData contém arquivos:', formData.getAll('file').length);
       
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',

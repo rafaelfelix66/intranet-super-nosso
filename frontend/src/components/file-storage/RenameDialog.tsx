@@ -1,4 +1,4 @@
-
+//src/components/file-storage/RenameDialog.tsx
 import React, { useState, useEffect } from "react";
 import { 
   Dialog,
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { FileItem, useFiles } from "@/contexts/FileContext";
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 
 interface RenameDialogProps {
   item: FileItem;
@@ -22,7 +22,7 @@ interface RenameDialogProps {
 
 export const RenameDialog = ({ item, isOpen, onOpenChange }: RenameDialogProps) => {
   const [newName, setNewName] = useState("");
-  const { renameItem } = useFiles();
+  const { renameItem, isLoading } = useFiles();
   
   useEffect(() => {
     if (isOpen && item) {
@@ -37,12 +37,15 @@ export const RenameDialog = ({ item, isOpen, onOpenChange }: RenameDialogProps) 
   
   const handleRename = () => {
     if (!newName.trim()) {
-      toast.error("O nome não pode estar vazio");
+      toast({
+        title: "Nome inválido",
+        description: "O nome não pode estar vazio",
+        variant: "destructive"
+      });
       return;
     }
     
     renameItem(item.id, newName.trim());
-    toast.success(`Item renomeado com sucesso`);
     onOpenChange(false);
   };
   
@@ -75,14 +78,16 @@ export const RenameDialog = ({ item, isOpen, onOpenChange }: RenameDialogProps) 
           <Button 
             variant="outline" 
             onClick={() => onOpenChange(false)}
+            disabled={isLoading}
           >
             Cancelar
           </Button>
           <Button 
             className="bg-supernosso-green hover:bg-supernosso-green/90"
-            onClick={handleRename} 
+            onClick={handleRename}
+            disabled={!newName.trim() || isLoading}
           >
-            Renomear
+            {isLoading ? "Renomeando..." : "Renomear"}
           </Button>
         </DialogFooter>
       </DialogContent>

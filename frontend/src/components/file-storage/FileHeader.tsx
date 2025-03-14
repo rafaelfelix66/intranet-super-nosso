@@ -1,6 +1,6 @@
-
+//src/components/file-storage/FileHeader.tsx
 import React, { useState } from "react";
-import { Search, Upload, Plus } from "lucide-react";
+import { Search, Upload, Plus, RotateCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useFiles } from "@/contexts/FileContext";
@@ -8,7 +8,7 @@ import { NewFolderDialog } from "./NewFolderDialog";
 import { UploadDialog } from "./UploadDialog";
 
 export const FileHeader = () => {
-  const { searchQuery, setSearchQuery } = useFiles();
+  const { searchQuery, setSearchQuery, refreshFiles, isLoading } = useFiles();
   const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   
@@ -30,9 +30,28 @@ export const FileHeader = () => {
             placeholder="Buscar arquivos..." 
             value={searchQuery}
             onChange={handleSearch}
-            className="pl-8 focus-visible:ring-supernosso-green w-full"
+            className="pl-8 focus-visible:ring-supernosso-red w-full"
           />
         </div>
+        
+        <Button 
+          variant="ghost"
+          size="icon"
+          onClick={refreshFiles}
+          disabled={isLoading}
+          className="flex-shrink-0"
+          title="Atualizar"
+        >
+          <RotateCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </Button>
+        
+        <Button 
+          className="bg-supernosso-red hover:bg-supernosso-red/90 text-white flex-shrink-0"
+          onClick={() => setIsUploadDialogOpen(true)}
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          Enviar
+        </Button>
         
         <UploadDialog 
           isOpen={isUploadDialogOpen} 
@@ -42,6 +61,7 @@ export const FileHeader = () => {
         <Button 
           variant="outline"
           onClick={() => setIsNewFolderDialogOpen(true)}
+          className="flex-shrink-0"
         >
           <Plus className="h-4 w-4 mr-2" />
           Nova Pasta

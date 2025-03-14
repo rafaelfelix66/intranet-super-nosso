@@ -1,4 +1,4 @@
-
+/* frontend/src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,14 +35,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 0 84% 45%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 100% 98%;
-    --sidebar-accent-foreground: 0 84% 45%;
-    --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 0 84% 45%;
+    --supernosso-red: #e60909;
+    --supernosso-purple: #7c3aed;
+    --supernosso-green: #10b981;
+    --supernosso-light-red: #fef2f2;
+    --supernosso-light-green: #ecfdf5;
+    --supernosso-darkgray: #403E43;
+    --supernosso-lightgray: #F9F9F9;
   }
 
   .dark {
@@ -73,15 +72,6 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 0 84% 45%;
-    
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 0 84% 45%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 84% 40%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 0 84% 45%;
   }
 }
 
@@ -96,16 +86,39 @@
   }
 }
 
-@layer utilities {
-  .story-link {
-    @apply relative inline-block after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-0.5 after:bottom-0 after:left-0 after:bg-primary after:origin-bottom-right after:transition-transform after:duration-300 hover:after:scale-x-100 hover:after:origin-bottom-left;
+/* Animações personalizadas */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  
-  .hover-scale {
-    @apply transition-transform duration-200 hover:scale-105;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
-  
-  .hover-lift {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-md;
-  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Utilitários personalizados */
+.hover-lift {
+  transition: all 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilos de chat */
+.message-sent {
+  color: #333 !important;
+  font-weight: 500;
+}
+
+.message-received {
+  color: #333 !important;
+  font-weight: 500;
 }

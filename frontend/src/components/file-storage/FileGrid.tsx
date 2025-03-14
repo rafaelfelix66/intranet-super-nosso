@@ -1,6 +1,6 @@
-
-import React from "react";
-import { Clock, MoreHorizontal } from "lucide-react";
+//src/components/file-storage/FileGrid.tsx
+import React, { useState } from "react";
+import { Clock, Download, MoreHorizontal, Trash, Pencil } from "lucide-react";
 import { useFiles, FileItem } from "@/contexts/FileContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,17 +9,50 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
 import { FileViewer } from "./FileViewer";
-import { useState } from "react";
 import { RenameDialog } from "./RenameDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FileIcon } from "./FileIcon";
 
 export const FileGrid = () => {
-  const { filteredFiles, navigateToFolder, deleteItem } = useFiles();
+  const { 
+    filteredFiles, 
+    navigateToFolder, 
+    downloadFile, 
+    deleteItem, 
+    isLoading, 
+    error 
+  } = useFiles();
+  
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [fileViewerOpen, setFileViewerOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [itemToRename, setItemToRename] = useState<FileItem | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<FileItem | null>(null);
+    // Adicione ícones aos itens antes de renderizá-los
+  const itemsWithIcons = useMemo(() => {
+    return filteredFiles.map(item => {
+      if (!item.icon) {
+        if (item.type === 'folder') {
+          item.icon = <FileIcon type="folder" />;
+        } else {
+          item.icon = <FileIcon type="file" extension={item.extension} />;
+        }
+      }
+      return item;
+    });
+  }, [filteredFiles]);
   
   const handleItemClick = (file: FileItem) => {
     if (file.type === 'folder') {
@@ -30,70 +63,113 @@ export const FileGrid = () => {
     }
   };
   
-  const handleDownload = (file: FileItem) => {
-    toast.success(`Iniciando download: ${file.name}`);
-    // In a real app, this would trigger an actual download
+  const handleDownload = (file: FileItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    downloadFile(file.id);
   };
   
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: string) => {
     deleteItem(id);
-    toast.success(`${name} excluído com sucesso`);
+    setDeleteDialogOpen(false);
   };
   
-  const handleRename = (file: FileItem) => {
+  const openDeleteDialog = (file: FileItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setItemToDelete(file);
+    setDeleteDialogOpen(true);
+  };
+  
+  const handleRename = (file: FileItem, e: React.MouseEvent) => {
+    e.stopPropagation();
     setItemToRename(file);
     setRenameDialogOpen(true);
   };
   
+  // Renderiza esqueletos de carregamento
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="border rounded-lg p-4">
+            <Skeleton className="h-10 w-10 rounded-full mx-auto mb-2" />
+            <Skeleton className="h-4 w-3/4 mx-auto mb-2" />
+            <Skeleton className="h-3 w-1/2 mx-auto" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  
+  // Renderiza mensagem de erro
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-red-100 text-red-800 p-4 rounded-lg inline-block mb-4">
+          <p className="font-medium">Erro ao carregar arquivos</p>
+          <p className="text-sm">{error}</p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredFiles.map((file) => (
-          <div 
-            key={file.id} 
-            className="border relative rounded-lg p-4 hover:border-supernosso-green/70 hover:shadow-sm transition-all cursor-pointer hover-lift"
-            onClick={() => handleItemClick(file)}
-          >
-            <div className="flex flex-col items-center">
-              {file.icon}
-              <div className="mt-2 text-center">
-                <p className="font-medium line-clamp-1">{file.name}</p>
-                <p className="text-xs text-gray-500 flex items-center justify-center mt-1">
-                  <Clock className="h-3 w-3 mr-1" />
-                  {file.modified}
-                  {file.size && <span className="ml-2">({file.size})</span>}
-                </p>
+        {itemsWithIcons.length > 0 ? (
+          itemsWithIcons.map((file) => (
+            <div 
+              key={file.id} 
+              className="border relative rounded-lg p-4 hover:border-supernosso-red/70 hover:shadow-sm transition-all cursor-pointer hover-lift"
+              onClick={() => handleItemClick(file)}
+            >
+              <div className="flex flex-col items-center">
+                {file.icon}
+                <div className="mt-2 text-center">
+                  <p className="font-medium line-clamp-1">{file.name}</p>
+                  <p className="text-xs text-gray-500 flex items-center justify-center mt-1">
+                    <Clock className="h-3 w-3 mr-1" />
+                    {file.modified}
+                    {file.size && <span className="ml-2">({file.size})</span>}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {file.type === 'file' && (
+                      <DropdownMenuItem onClick={(e) => handleDownload(file, e)}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Baixar
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={(e) => handleRename(file, e)}>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="text-red-500" 
+                      onClick={(e) => openDeleteDialog(file, e)}
+                    >
+                      <Trash className="h-4 w-4 mr-2" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-            
-            <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {file.type === 'file' && (
-                    <DropdownMenuItem onClick={() => handleDownload(file)}>
-                      Baixar
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => handleRename(file)}>
-                    Renomear
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-500" onClick={() => handleDelete(file.id, file.name)}>
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        ))}
-        
-        {filteredFiles.length === 0 && (
+          ))
+        ) : (
           <div className="col-span-full text-center py-12">
-            <FileIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <div className="h-12 w-12 text-gray-300 mx-auto mb-3">
+              {/* Placeholder para o ícone */}
+              {itemsWithIcons.length === 0 && <span className="text-3xl">📁</span>}
+            </div>
             <h3 className="text-lg font-medium">Nenhum arquivo encontrado</h3>
             <p className="text-sm text-gray-500">
               {useFiles().searchQuery 
@@ -108,7 +184,8 @@ export const FileGrid = () => {
         <FileViewer 
           file={selectedFile} 
           isOpen={fileViewerOpen} 
-          onOpenChange={setFileViewerOpen} 
+          onOpenChange={setFileViewerOpen}
+          onDownload={() => downloadFile(selectedFile.id)}
         />
       )}
       
@@ -119,11 +196,31 @@ export const FileGrid = () => {
           onOpenChange={setRenameDialogOpen}
         />
       )}
+      
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir {itemToDelete?.type === 'folder' ? 'a pasta' : 'o arquivo'} "{itemToDelete?.name}"?
+              {itemToDelete?.type === 'folder' && (
+                <p className="mt-2 text-red-500">
+                  Atenção: Todos os arquivos e subpastas também serão excluídos!
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-500 hover:bg-red-600"
+              onClick={() => itemToDelete && handleDelete(itemToDelete.id)}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
-};
-
-// Workaround to avoid circular dependency
-const FileIcon = (props: any) => {
-  return <div {...props} />;
 };

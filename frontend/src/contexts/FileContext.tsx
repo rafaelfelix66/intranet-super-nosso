@@ -1,11 +1,16 @@
+src/contexts/FileContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { FileIcon, FolderIcon } from "lucide-react";
+import { fileService } from "@/services/fileService";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export interface FileItem {
   id: string;
   name: string;
   type: 'file' | 'folder';
-  icon: React.ReactNode;
+  icon?: React.ReactNode; // Agora é opcional
+  iconType?: string; // Novo campo
   size?: string;
   modified: string;
   path: string;
@@ -19,146 +24,65 @@ interface FileContextType {
   currentParentId: string | null;
   searchQuery: string;
   filteredFiles: FileItem[];
+  isLoading: boolean;
+  error: string | null;
   setSearchQuery: (query: string) => void;
   navigateToFolder: (folder: FileItem) => void;
   navigateToBreadcrumb: (index: number) => void;
-  createNewFolder: (name: string) => void;
-  uploadFile: (file: File) => void;
-  deleteItem: (id: string) => void;
+  createNewFolder: (name: string) => Promise<void>;
+  uploadFile: (file: File) => Promise<void>;
+  downloadFile: (fileId: string) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
   renameItem: (id: string, newName: string) => void;
+  refreshFiles: () => Promise<void>;
 }
-
-const initialFiles: FileItem[] = [
-  {
-    id: 'root',
-    name: 'Meus Arquivos',
-    type: 'folder',
-    icon: <FolderIcon className="h-10 w-10 text-supernosso-purple" />,
-    modified: new Date().toLocaleDateString('pt-BR'),
-    path: '/',
-    parentId: null
-  },
-  {
-    id: '1',
-    name: 'Documentos',
-    type: 'folder',
-    icon: <FolderIcon className="h-10 w-10 text-supernosso-purple" />,
-    modified: '10/06/2023',
-    path: '/documentos',
-    parentId: 'root'
-  },
-  {
-    id: '2',
-    name: 'Recursos Humanos',
-    type: 'folder',
-    icon: <FolderIcon className="h-10 w-10 text-supernosso-purple" />,
-    modified: '05/06/2023',
-    path: '/recursos-humanos',
-    parentId: 'root'
-  },
-  {
-    id: '3',
-    name: 'Marketing',
-    type: 'folder',
-    icon: <FolderIcon className="h-10 w-10 text-supernosso-purple" />,
-    modified: '01/06/2023',
-    path: '/marketing',
-    parentId: 'root'
-  },
-  {
-    id: '4',
-    name: 'Relatório Trimestral.pdf',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-red-500" />,
-    size: '2.4 MB',
-    modified: '15/06/2023',
-    path: '/relatorio-trimestral.pdf',
-    parentId: 'root',
-    extension: 'pdf'
-  },
-  {
-    id: '5',
-    name: 'Plano Estratégico 2023.docx',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-blue-500" />,
-    size: '1.8 MB',
-    modified: '12/06/2023',
-    path: '/plano-estrategico-2023.docx',
-    parentId: 'root',
-    extension: 'docx'
-  },
-  {
-    id: '6',
-    name: 'Lista de Preços.xlsx',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-green-500" />,
-    size: '3.2 MB',
-    modified: '08/06/2023',
-    path: '/lista-de-precos.xlsx',
-    parentId: 'root',
-    extension: 'xlsx'
-  },
-  // Files within Documentos folder
-  {
-    id: '7',
-    name: 'Contrato.pdf',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-red-500" />,
-    size: '1.5 MB',
-    modified: '20/06/2023',
-    path: '/documentos/contrato.pdf',
-    parentId: '1',
-    extension: 'pdf'
-  },
-  {
-    id: '8',
-    name: 'Manual do Funcionário.docx',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-blue-500" />,
-    size: '4.2 MB',
-    modified: '18/06/2023',
-    path: '/documentos/manual-do-funcionario.docx',
-    parentId: '1',
-    extension: 'docx'
-  },
-  // Files within Recursos Humanos folder
-  {
-    id: '9',
-    name: 'Folha de Pagamento.xlsx',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-green-500" />,
-    size: '1.1 MB',
-    modified: '25/06/2023',
-    path: '/recursos-humanos/folha-de-pagamento.xlsx',
-    parentId: '2',
-    extension: 'xlsx'
-  },
-  // Files within Marketing folder
-  {
-    id: '10',
-    name: 'Campanha Q3.pptx',
-    type: 'file',
-    icon: <FileIcon className="h-10 w-10 text-orange-500" />,
-    size: '5.7 MB',
-    modified: '30/06/2023',
-    path: '/marketing/campanha-q3.pptx',
-    parentId: '3',
-    extension: 'pptx'
-  }
-];
 
 const FileContext = createContext<FileContextType | null>(null);
 
 export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [files, setFiles] = useState<FileItem[]>(initialFiles);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [currentPath, setCurrentPath] = useState<string[]>(['Meus Arquivos']);
-  const [currentParentId, setCurrentParentId] = useState<string | null>('root');
+  const [currentParentId, setCurrentParentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredFiles, setFilteredFiles] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   
-  // Filter files by current folder and search query
+  // Carregar arquivos e pastas do backend
+  const fetchFiles = async (folderId: string | null = null) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const items = await fileService.getFiles(folderId);
+      setFiles(items);
+    } catch (err) {
+      console.error('Erro ao carregar arquivos:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Erro ao carregar arquivos';
+      setError(errorMsg);
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Inicialização - carregar arquivos da pasta raiz
   useEffect(() => {
-    let filtered = files.filter(file => file.parentId === currentParentId);
+    if (isAuthenticated) {
+      fetchFiles(currentParentId);
+    }
+  }, [isAuthenticated]);
+  
+  // Filtrar arquivos por consulta de pesquisa
+  useEffect(() => {
+    let filtered = files;
     
     if (searchQuery) {
       filtered = filtered.filter(file => 
@@ -167,162 +91,231 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     setFilteredFiles(filtered);
-  }, [files, currentParentId, searchQuery]);
+  }, [files, searchQuery]);
   
-  const findFolderPath = (folderId: string | null): string[] => {
-    if (!folderId || folderId === 'root') return ['Meus Arquivos'];
+  // Função para reconstruir o caminho da pasta
+  const buildFolderPath = async (folderId: string | null): Promise<string[]> => {
+    if (!folderId) return ['Meus Arquivos'];
     
-    const folder = files.find(f => f.id === folderId);
-    if (!folder) return ['Meus Arquivos'];
-    
-    const parentPath = findFolderPath(folder.parentId || null);
-    return [...parentPath, folder.name];
+    try {
+      // Buscar todo o caminho recursivamente
+      const folders: FileItem[] = [];
+      let currentId: string | null = folderId;
+      
+      while (currentId) {
+        const folderItems = await fileService.getFiles(currentId);
+        const parentFolder = folderItems.find(f => f.id === currentId && f.type === 'folder');
+        
+        if (parentFolder) {
+          folders.unshift(parentFolder);
+          currentId = parentFolder.parentId;
+        } else {
+          currentId = null;
+        }
+      }
+      
+      return ['Meus Arquivos', ...folders.map(f => f.name)];
+    } catch (error) {
+      console.error('Erro ao obter caminho da pasta:', error);
+      return ['Meus Arquivos'];
+    }
   };
   
-  const navigateToFolder = (folder: FileItem) => {
+  // Navegar para uma pasta
+  const navigateToFolder = async (folder: FileItem) => {
     if (folder.type !== 'folder') return;
     
-    setCurrentParentId(folder.id);
-    setCurrentPath(findFolderPath(folder.id));
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      // Atualizar o ID da pasta atual
+      setCurrentParentId(folder.id);
+      
+      // Buscar arquivos da nova pasta
+      await fetchFiles(folder.id);
+      
+      // Atualizar caminho da navegação
+      const newPath = await buildFolderPath(folder.id);
+      setCurrentPath(newPath);
+    } catch (error) {
+      console.error('Erro ao navegar para a pasta:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao navegar para a pasta';
+      setError(errorMsg);
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
-  const navigateToBreadcrumb = (index: number) => {
+  // Navegar pelo breadcrumb
+  const navigateToBreadcrumb = async (index: number) => {
     if (index === 0) {
-      // Root directory
-      setCurrentParentId('root');
+      // Voltar para a raiz
+      setCurrentParentId(null);
       setCurrentPath(['Meus Arquivos']);
+      fetchFiles(null);
       return;
     }
     
-    // Get the folder name at this index
-    const folderName = currentPath[index];
-    
-    // Find the folder ID based on the path up to this index
-    const folderPath = currentPath.slice(0, index + 1);
-    
-    // Find the actual folder object
-    let currentFolder: FileItem | undefined;
-    
-    // If we're clicking the last item, it's our current folder
-    if (index === currentPath.length - 1) {
-      currentFolder = files.find(f => f.name === folderName && f.type === 'folder');
-    } else {
-      // Otherwise, we need to find the folder in the path
-      currentFolder = files.find(f => 
-        f.name === folderName && 
-        f.type === 'folder' && 
-        findFolderPath(f.id).length === folderPath.length
+    // Encontrar o ID da pasta baseado no índice do breadcrumb
+    try {
+      const pathToFolder = currentPath.slice(0, index + 1);
+      const folderName = pathToFolder[pathToFolder.length - 1];
+      
+      // Verificar o item anterior para obter a pasta pai
+      const parentIndex = index - 1;
+      const parentId = parentIndex === 0 ? null : currentParentId; // Simplificação
+      
+      // Buscar os itens da pasta pai
+      const items = await fileService.getFiles(parentId);
+      
+      // Encontrar a pasta pelo nome
+      const targetFolder = items.find(item => 
+        item.type === 'folder' && item.name === folderName
       );
-    }
-    
-    if (currentFolder) {
-      setCurrentParentId(currentFolder.id);
-      setCurrentPath(folderPath);
-    }
-  };
-  
-  const createNewFolder = (name: string) => {
-    const newFolder: FileItem = {
-      id: Date.now().toString(),
-      name,
-      type: 'folder',
-      icon: <FolderIcon className="h-10 w-10 text-supernosso-purple" />,
-      modified: new Date().toLocaleDateString('pt-BR'),
-      path: `${currentPath.join('/')}/${name}`,
-      parentId: currentParentId
-    };
-    
-    setFiles([...files, newFolder]);
-  };
-  
-  const uploadFile = (file: File) => {
-    // Determine file icon based on extension
-    const extension = file.name.split('.').pop() || '';
-    let icon;
-    
-    switch(extension.toLowerCase()) {
-      case 'pdf':
-        icon = <FileIcon className="h-10 w-10 text-red-500" />;
-        break;
-      case 'docx':
-      case 'doc':
-        icon = <FileIcon className="h-10 w-10 text-blue-500" />;
-        break;
-      case 'xlsx':
-      case 'xls':
-        icon = <FileIcon className="h-10 w-10 text-green-500" />;
-        break;
-      case 'pptx':
-      case 'ppt':
-        icon = <FileIcon className="h-10 w-10 text-orange-500" />;
-        break;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-        icon = <FileIcon className="h-10 w-10 text-purple-500" />;
-        break;
-      default:
-        icon = <FileIcon className="h-10 w-10 text-gray-500" />;
-    }
-    
-    const newFile: FileItem = {
-      id: Date.now().toString(),
-      name: file.name,
-      type: 'file',
-      icon,
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      modified: new Date().toLocaleDateString('pt-BR'),
-      path: `${currentPath.join('/')}/${file.name}`,
-      parentId: currentParentId,
-      extension
-    };
-    
-    setFiles([...files, newFile]);
-  };
-  
-  const deleteItem = (id: string) => {
-    // Delete item and its children if it's a folder
-    const itemsToDelete = [id];
-    
-    // If it's a folder, find all children
-    const findChildren = (parentId: string) => {
-      const children = files.filter(f => f.parentId === parentId);
-      children.forEach(child => {
-        itemsToDelete.push(child.id);
-        if (child.type === 'folder') {
-          findChildren(child.id);
-        }
-      });
-    };
-    
-    const item = files.find(f => f.id === id);
-    if (item && item.type === 'folder') {
-      findChildren(id);
-    }
-    
-    setFiles(files.filter(f => !itemsToDelete.includes(f.id)));
-  };
-  
-  const renameItem = (id: string, newName: string) => {
-    setFiles(files.map(file => {
-      if (file.id === id) {
-        // Preserve extension for files
-        let name = newName;
-        if (file.type === 'file' && file.extension) {
-          // Make sure the new name has the same extension
-          if (!newName.endsWith(`.${file.extension}`)) {
-            name = `${newName}.${file.extension}`;
-          }
-        }
-        
-        return {
-          ...file,
-          name,
-          path: file.path.replace(file.name, name)
-        };
+      
+      if (targetFolder) {
+        setCurrentParentId(targetFolder.id);
+        setCurrentPath(pathToFolder);
+        fetchFiles(targetFolder.id);
       }
-      return file;
-    }));
+    } catch (error) {
+      console.error('Erro ao navegar no breadcrumb:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível navegar para esta pasta",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Criar nova pasta
+  const createNewFolder = async (name: string) => {
+    if (!name.trim()) {
+      toast({
+        title: "Nome inválido",
+        description: "O nome da pasta não pode estar vazio",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await fileService.createFolder(name, currentParentId);
+      toast({
+        title: "Pasta criada",
+        description: `Pasta "${name}" criada com sucesso`
+      });
+      await fetchFiles(currentParentId);
+    } catch (error) {
+      console.error('Erro ao criar pasta:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao criar pasta';
+      setError(errorMsg);
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Upload de arquivo
+  const uploadFile = async (file: File) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await fileService.uploadFile(file, currentParentId);
+      toast({
+        title: "Upload concluído",
+        description: `Arquivo "${file.name}" enviado com sucesso`
+      });
+      await fetchFiles(currentParentId);
+    } catch (error) {
+      console.error('Erro ao fazer upload:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao fazer upload';
+      setError(errorMsg);
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Download de arquivo
+  const downloadFile = async (fileId: string) => {
+    try {
+      await fileService.downloadFile(fileId);
+    } catch (error) {
+      console.error('Erro ao baixar arquivo:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao baixar arquivo';
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Excluir item (arquivo ou pasta)
+  const deleteItem = async (id: string) => {
+    setIsLoading(true);
+    
+    try {
+      // Encontrar o item para determinar o tipo
+      const item = files.find(file => file.id === id);
+      if (!item) {
+        throw new Error('Item não encontrado');
+      }
+      
+      // Excluir o item
+      await fileService.deleteItem(id, item.type);
+      
+      toast({
+        title: "Item excluído",
+        description: `${item.type === 'folder' ? 'Pasta' : 'Arquivo'} "${item.name}" excluído com sucesso`
+      });
+      
+      // Atualizar a lista de arquivos
+      await fetchFiles(currentParentId);
+    } catch (error) {
+      console.error('Erro ao excluir item:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao excluir item';
+      toast({
+        title: "Erro",
+        description: errorMsg,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Renomear item (não implementado no backend, apenas UI)
+  const renameItem = (id: string, newName: string) => {
+    // Placeholder para futura implementação
+    toast({
+      title: "Funcionalidade em desenvolvimento",
+      description: "A função de renomear ainda não está disponível"
+    });
+  };
+  
+  // Atualizar lista de arquivos
+  const refreshFiles = async () => {
+    await fetchFiles(currentParentId);
   };
   
   return (
@@ -332,13 +325,17 @@ export const FileProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentParentId,
       searchQuery,
       filteredFiles,
+      isLoading,
+      error,
       setSearchQuery,
       navigateToFolder,
       navigateToBreadcrumb,
       createNewFolder,
       uploadFile,
+      downloadFile,
       deleteItem,
-      renameItem
+      renameItem,
+      refreshFiles
     }}>
       {children}
     </FileContext.Provider>

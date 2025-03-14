@@ -1,6 +1,5 @@
-
 import React from "react";
-import { FileText, Folder } from "lucide-react";
+import { FileText, Folder, FileImage, FileSpreadsheet, FileCode, FileArchive } from "lucide-react";
 
 interface FileIconProps {
   extension?: string;
@@ -13,32 +12,42 @@ export const FileIcon: React.FC<FileIconProps> = ({ extension, size = 40, type }
     return <Folder size={size} className="text-supernosso-purple" />;
   }
   
-  // Determine color based on file extension
-  let color = "text-gray-500";
-  
-  switch(extension?.toLowerCase()) {
+  // Determine icon and color based on file extension
+  switch((extension || '').toLowerCase()) {
     case 'pdf':
-      color = "text-red-500";
-      break;
+      return <FileText size={size} className="text-red-500" />;
     case 'docx':
     case 'doc':
-      color = "text-blue-500";
-      break;
+      return <FileText size={size} className="text-blue-500" />;
     case 'xlsx':
     case 'xls':
-      color = "text-green-500";
-      break;
+    case 'csv':
+      return <FileSpreadsheet size={size} className="text-green-500" />;
     case 'pptx':
     case 'ppt':
-      color = "text-orange-500";
-      break;
+      return <FileText size={size} className="text-orange-500" />;
     case 'jpg':
     case 'jpeg':
     case 'png':
     case 'gif':
-      color = "text-purple-500";
-      break;
+    case 'bmp':
+    case 'svg':
+      return <FileImage size={size} className="text-purple-500" />;
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+      return <FileArchive size={size} className="text-yellow-500" />;
+    case 'js':
+    case 'ts':
+    case 'html':
+    case 'css':
+    case 'json':
+    case 'php':
+    case 'py':
+      return <FileCode size={size} className="text-cyan-500" />;
+    default:
+      return <FileText size={size} className="text-gray-500" />;
   }
-  
-  return <FileText size={size} className={color} />;
 };
