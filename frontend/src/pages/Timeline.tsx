@@ -130,6 +130,51 @@ const getBaseUrl = () => {
   return 'http://localhost:3000'; // Em desenvolvimento local
 };
 
+// Componente melhorado para renderizar imagens com tratamento de erro
+// IMPORTANTE: Movido para antes de ser usado
+const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+  const [error, setError] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState<string>("");
+
+  useEffect(() => {
+    setError(false);
+    if (!src || typeof src !== 'string') {
+      setError(true);
+      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+      return;
+    }
+    // Usar o caminho relativo para que o proxy (Nginx) redirecione para o backend
+    const fullSrc = `http://127.0.0.1${src}`; // Ex.: "/uploads/timeline/..."
+    console.log('Caminho da imagem:', {
+      original: src,
+      normalizado: fullSrc
+    });
+    setCurrentSrc(fullSrc);
+  }, [src]);
+
+  const handleError = () => {
+    console.error(`Erro ao carregar imagem: ${currentSrc}`);
+    setError(true);
+    setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+  };
+
+  return (
+    <>
+      <img 
+        src={currentSrc}
+        alt={alt || "Imagem"}
+        className={className}
+        onError={handleError}
+      />
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-80 text-gray-500 text-xs p-2 text-center">
+          Não foi possível carregar a imagem
+        </div>
+      )}
+    </>
+  );
+};
+
 // Funções de integração com a API
 const normalizePath = (path: string): string => {
   if (!path) return '';
@@ -246,50 +291,6 @@ const fetchPosts = async () => {
   }
 };
 
-// Componente melhorado para renderizar imagens com tratamento de erro
-const ImageRenderer = ({ src, alt, className }) => {
-  const [error, setError] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState<string>("");
-
-  useEffect(() => {
-    setError(false);
-    if (!src || typeof src !== 'string') {
-      setError(true);
-      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
-      return;
-    }
-    // Usar o caminho relativo para que o proxy (Nginx) redirecione para o backend
-    const fullSrc = `http://127.0.0.1${src}`; // Ex.: "/uploads/timeline/..."
-    console.log('Caminho da imagem:', {
-      original: src,
-      normalizado: fullSrc
-    });
-    setCurrentSrc(fullSrc);
-  }, [src]);
-
-  const handleError = () => {
-    console.error(`Erro ao carregar imagem: ${currentSrc}`);
-    setError(true);
-    setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
-  };
-
-  return (
-    <>
-      <img 
-        src={currentSrc}
-        alt={alt}
-        className={className}
-        onError={handleError}
-      />
-      {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-80 text-gray-500 text-xs p-2 text-center">
-          Não foi possível carregar a imagem
-        </div>
-      )}
-    </>
-  );
-};
-
 const createNewPostApi = async (
   text: string, 
   files: File[], 
@@ -387,6 +388,29 @@ const addComment = async (postId: string, text: string) => {
       content: comment.text,
       timestamp: formatTimestamp(comment.createdAt)
     }));
+
+    try {
+      const updatedComments = await addComment(postId, commentText);
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          return { ...post, comments: updatedComments };
+        }
+        return post;
+      }));
+    } catch (error) {
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          return { ...post, comments: post.comments.filter(c => c.id !== tempId) };
+        }
+        return post;
+      }));
+
+      toast({ 
+        title: "Erro", 
+        description: "Não foi possível adicionar o comentário.",
+        variant: "destructive" 
+      });
+    }
     
     return formattedComments;
   } catch (error) {

@@ -1,5 +1,5 @@
 //src/components/file-storage/FileGrid.tsx
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Clock, Download, MoreHorizontal, Trash, Pencil } from "lucide-react";
 import { useFiles, FileItem } from "@/contexts/FileContext";
 import { Button } from "@/components/ui/button";

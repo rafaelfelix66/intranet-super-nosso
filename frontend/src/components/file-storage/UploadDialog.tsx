@@ -128,22 +128,22 @@ export const UploadDialog = ({ isOpen, onOpenChange }: UploadDialogProps) => {
             </div>
           )}
         </div>
-        <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => handleOpenChange(false)}
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          <Button 
-            className="bg-supernosso-green hover:bg-supernosso-green/90"
-            onClick={handleUpload}
-            disabled={!selectedFile || isLoading || progress > 0}
-          >
-            {isLoading ? "Enviando..." : "Enviar"}
-          </Button>
-        </DialogFooter>
+        <DialogFooter className="justify-between">
+		  <Button 
+			variant="outline" 
+			onClick={() => handleOpenChange(false)}
+			disabled={isLoading}
+		  >
+			Cancelar
+		  </Button>
+		  <Button 
+			className="bg-supernosso-green hover:bg-supernosso-green/90 text-white font-medium"
+			onClick={handleUpload}
+			disabled={!selectedFile || isLoading || progress > 0}
+		  >
+			{isLoading ? "Enviando..." : "Enviar"}
+		  </Button>
+		</DialogFooter>
       </DialogContent>
     </Dialog>
   );

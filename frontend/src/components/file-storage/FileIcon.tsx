@@ -1,3 +1,4 @@
+//src/components/file-storage/Fileicon.tsx
 import React from "react";
 import { FileText, Folder, FileImage, FileSpreadsheet, FileCode, FileArchive } from "lucide-react";
 

@@ -69,7 +69,9 @@ export default {
 					darkgray: '#403E43',
 					lightgray: '#F9F9F9',
 					white: '#FFFFFF',
-					'off-white': '#F1F1F1'
+					'off-white': '#F1F1F1',
+					green: '#10b981',  
+					purple: '#7c3aed'
 				}
 			},
 			borderRadius: {

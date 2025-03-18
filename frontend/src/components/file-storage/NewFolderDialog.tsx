@@ -55,22 +55,22 @@ export const NewFolderDialog = ({ isOpen, onOpenChange }: NewFolderDialogProps) 
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => onOpenChange(false)}
-            disabled={isLoading}
-          >
-            Cancelar
-          </Button>
-          <Button 
-            className="bg-supernosso-green hover:bg-supernosso-green/90"
-            onClick={handleCreateFolder} 
-            disabled={isLoading || !folderName.trim()}
-          >
-            {isLoading ? "Criando..." : "Criar"}
-          </Button>
-        </DialogFooter>
+        <DialogFooter className="justify-between">
+		  <Button 
+			variant="outline" 
+			onClick={() => onOpenChange(false)}
+			disabled={isLoading}
+		  >
+			Cancelar
+		  </Button>
+		  <Button 
+			className="bg-supernosso-green hover:bg-supernosso-green/90 text-white font-medium"
+			onClick={handleCreateFolder} 
+			disabled={isLoading || !folderName.trim()}
+		  >
+			{isLoading ? "Criando..." : "Criar"}
+		  </Button>
+		</DialogFooter>
       </DialogContent>
     </Dialog>
   );
