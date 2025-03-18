@@ -7,6 +7,7 @@ import { Article, Category } from "../types";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SearchBar } from "./SearchBar";
 
 interface ArticleContentProps {
   selectedArticle: Article | null;
@@ -19,6 +20,9 @@ interface ArticleContentProps {
   isLoading?: boolean;
   error?: string | null;
   onRefresh?: () => void;
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  onSearch?: () => void;
 }
 
 export const ArticleContent: React.FC<ArticleContentProps> = ({
@@ -31,7 +35,10 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
   onCloseArticle,
   isLoading = false,
   error = null,
-  onRefresh
+  onRefresh,
+  searchTerm,
+  setSearchTerm,
+  onSearch
 }) => {
   if (selectedArticle) {
     if (isLoading) {
@@ -74,83 +81,89 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
     );
   }
 
-  if (isLoading && filteredArticles.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-supernosso-red mb-4" />
-        <p className="text-muted-foreground">Carregando artigos...</p>
-      </div>
-    );
-  }
-  
-  if (error && filteredArticles.length === 0) {
-    return (
-      <Alert variant="destructive" className="my-4">
-        <AlertTitle>Erro ao carregar artigos</AlertTitle>
-        <AlertDescription>
-          {error}
-          {onRefresh && (
-            <Button variant="outline" size="sm" className="mt-2" onClick={onRefresh}>
-              Tentar novamente
-            </Button>
-          )}
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
   return (
-    <Tabs defaultValue="relevantes" className="w-full">
-      <div className="flex justify-between items-center">
-        <TabsList>
-          <TabsTrigger value="relevantes">Mais Relevantes</TabsTrigger>
-          <TabsTrigger value="recentes">Mais Recentes</TabsTrigger>
-          <TabsTrigger value="vistos">Mais Vistos</TabsTrigger>
-        </TabsList>
-        
-        <div className="text-sm text-muted-foreground">
-          {filteredArticles.length} artigos encontrados
+    <>
+      {/* Barra de pesquisa única */}
+      <SearchBar 
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        onSearch={onSearch}
+      />
+
+      {isLoading && filteredArticles.length === 0 ? (
+        <div className="flex flex-col items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-supernosso-red mb-4" />
+          <p className="text-muted-foreground">Carregando artigos...</p>
         </div>
-      </div>
-      
-      <TabsContent value="relevantes" className="mt-4 space-y-4">
-        <ArticleList 
-          articles={filteredArticles}
-          categories={categories}
-          selectedCategory={activeTab}
-          onArticleClick={onArticleClick}
-          isLoading={isLoading}
-          error={error}
-          onRefresh={onRefresh}
-        />
-      </TabsContent>
-      
-      <TabsContent value="recentes" className="mt-4 space-y-4">
-        <ArticleList 
-          articles={filteredArticles
-            .sort((a, b) => new Date(b.date.split('/').reverse().join('-')).getTime() - 
-                          new Date(a.date.split('/').reverse().join('-')).getTime())}
-          categories={categories}
-          selectedCategory={activeTab}
-          onArticleClick={onArticleClick}
-          isLoading={isLoading}
-          error={error}
-          onRefresh={onRefresh}
-        />
-      </TabsContent>
-      
-      <TabsContent value="vistos" className="mt-4 space-y-4">
-        <ArticleList 
-          articles={filteredArticles
-            .sort((a, b) => b.views - a.views)}
-          categories={categories}
-          selectedCategory={activeTab}
-          onArticleClick={onArticleClick}
-          isLoading={isLoading}
-          error={error}
-          onRefresh={onRefresh}
-        />
-      </TabsContent>
-    </Tabs>
+      ) : error && filteredArticles.length === 0 ? (
+        <Alert variant="destructive" className="my-4">
+          <AlertTitle>Erro ao carregar artigos</AlertTitle>
+          <AlertDescription>
+            {error}
+            {onRefresh && (
+              <Button variant="outline" size="sm" className="mt-2" onClick={onRefresh}>
+                Tentar novamente
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Tabs defaultValue="relevantes" className="w-full">
+          <div className="flex justify-between items-center">
+            <TabsList>
+              <TabsTrigger value="relevantes">Mais Relevantes</TabsTrigger>
+              <TabsTrigger value="recentes">Mais Recentes</TabsTrigger>
+              <TabsTrigger value="vistos">Mais Vistos</TabsTrigger>
+            </TabsList>
+            
+            <div className="text-sm text-muted-foreground">
+              {filteredArticles.length} artigos encontrados
+            </div>
+          </div>
+          
+          <TabsContent value="relevantes" className="mt-4 space-y-4">
+            <ArticleList 
+              articles={filteredArticles}
+              categories={categories}
+              selectedCategory={activeTab}
+              onArticleClick={onArticleClick}
+              onToggleFavorite={onToggleFavorite}
+              isLoading={isLoading}
+              error={error}
+              onRefresh={onRefresh}
+            />
+          </TabsContent>
+          
+          <TabsContent value="recentes" className="mt-4 space-y-4">
+            <ArticleList 
+              articles={filteredArticles
+                .sort((a, b) => new Date(b.date.split('/').reverse().join('-')).getTime() - 
+                              new Date(a.date.split('/').reverse().join('-')).getTime())}
+              categories={categories}
+              selectedCategory={activeTab}
+              onArticleClick={onArticleClick}
+              onToggleFavorite={onToggleFavorite}
+              isLoading={isLoading}
+              error={error}
+              onRefresh={onRefresh}
+            />
+          </TabsContent>
+          
+          <TabsContent value="vistos" className="mt-4 space-y-4">
+            <ArticleList 
+              articles={filteredArticles
+                .sort((a, b) => b.views - a.views)}
+              categories={categories}
+              selectedCategory={activeTab}
+              onArticleClick={onArticleClick}
+              onToggleFavorite={onToggleFavorite}
+              isLoading={isLoading}
+              error={error}
+              onRefresh={onRefresh}
+            />
+          </TabsContent>
+        </Tabs>
+      )}
+    </>
   );
 };

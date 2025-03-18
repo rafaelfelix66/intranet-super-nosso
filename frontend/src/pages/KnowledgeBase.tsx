@@ -1,12 +1,11 @@
 // src/pages/KnowledgeBase.tsx
-// src/pages/KnowledgeBase.tsx
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,9 +62,28 @@ const KnowledgeBase = () => {
     handleAddTag,
     handleRemoveTag,
     handleCreateArticle,
+    handleDeleteArticle,
     fetchArticles
   } = useArticles();
   
+  // Carregar categorias salvas do localStorage quando o componente é montado
+  useEffect(() => {
+    const savedCategories = localStorage.getItem('knowledge_categories');
+    if (savedCategories) {
+      try {
+        const parsedCategories = JSON.parse(savedCategories);
+        // Manter o mesmo formato dos ícones que vêm das categorias iniciais
+        const categoriesWithIcons = parsedCategories.map(cat => ({
+          ...cat,
+          icon: initialCategories.find(c => c.id === cat.id)?.icon || initialCategories[0].icon
+        }));
+        setCategories(categoriesWithIcons);
+      } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+      }
+    }
+  }, []);
+
   // Atualizar a contagem de artigos em cada categoria
   useEffect(() => {
     const updatedCategories = categories.map(category => {
@@ -76,6 +94,19 @@ const KnowledgeBase = () => {
     
     setCategories(updatedCategories);
   }, [articles]);
+  
+  // Salvar categorias no localStorage quando elas são alteradas
+  useEffect(() => {
+    try {
+      // Remover propriedades do React que não precisamos salvar
+      const categoriesToSave = categories.map(({ id, name, count, color }) => ({ 
+        id, name, count, color 
+      }));
+      localStorage.setItem('knowledge_categories', JSON.stringify(categoriesToSave));
+    } catch (error) {
+      console.error('Erro ao salvar categorias:', error);
+    }
+  }, [categories]);
   
   const filteredArticles = articles.filter(article => {
     const matchesSearch = 
@@ -169,30 +200,12 @@ const KnowledgeBase = () => {
   
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6" data-article-delete={handleDeleteArticle.toString()}>
         <div className="space-y-2">
           <h1 className="text-2xl font-bold">Base de Conhecimento</h1>
           <p className="text-muted-foreground">
             Acesse artigos, manuais e documentações para consulta rápida
           </p>
-        </div>
-        
-        <div className="flex gap-2 items-center">
-          <div className="flex-1">
-            <Input 
-              placeholder="Pesquisar artigos, manuais ou palavras-chave..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSearch();
-                }
-              }}
-            />
-          </div>
-          <Button onClick={handleSearch} className="bg-supernosso-red hover:bg-supernosso-red/90">
-            Buscar
-          </Button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -226,6 +239,9 @@ const KnowledgeBase = () => {
               isLoading={isLoading}
               error={error}
               onRefresh={fetchArticles}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              onSearch={handleSearch}
             />
           </div>
         </div>

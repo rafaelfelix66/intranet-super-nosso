@@ -29,6 +29,7 @@ export const addFavorite = (articleId: string): string[] => {
   if (!favorites.includes(articleId)) {
     favorites.push(articleId);
     saveFavorites(favorites);
+    console.log(`Artigo ${articleId} adicionado aos favoritos`);
   }
   return favorites;
 };
@@ -38,6 +39,7 @@ export const removeFavorite = (articleId: string): string[] => {
   let favorites = loadFavorites();
   favorites = favorites.filter(id => id !== articleId);
   saveFavorites(favorites);
+  console.log(`Artigo ${articleId} removido dos favoritos`);
   return favorites;
 };
 
@@ -49,7 +51,9 @@ export const isFavorite = (articleId: string): boolean => {
 
 // Alternar estado de favorito de um artigo
 export const toggleFavorite = (articleId: string): boolean => {
-  if (isFavorite(articleId)) {
+  const wasFavorite = isFavorite(articleId);
+  
+  if (wasFavorite) {
     removeFavorite(articleId);
     return false;
   } else {

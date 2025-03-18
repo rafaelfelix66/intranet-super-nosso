@@ -36,10 +36,17 @@ export const useArticles = () => {
       
       // Carregar os favoritos do localStorage e marcar os artigos
       const favorites = loadFavorites();
+      
+      // Debug para verificar favoritos
+      console.log("Favoritos carregados:", favorites);
+      
       const articlesWithFavorites = data.map(article => ({
         ...article,
         favorite: favorites.includes(article.id)
       }));
+      
+      // Log para verificar se os artigos estão sendo marcados como favoritos
+      console.log("Artigos com favoritos:", articlesWithFavorites.filter(a => a.favorite));
       
       setArticles(articlesWithFavorites);
     } catch (error) {
@@ -92,7 +99,9 @@ export const useArticles = () => {
   };
 
   const handleToggleFavorite = (articleId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
+    if (event) {
+      event.stopPropagation();
+    }
     
     // Toggle favorite no localStorage
     const isFavoriteNow = toggleFavoriteService(articleId);
@@ -111,6 +120,10 @@ export const useArticles = () => {
       setSelectedArticle(prev => prev ? {...prev, favorite: isFavoriteNow} : null);
     }
     
+    // Debug para verificar estado atual dos favoritos
+    console.log("Favorito alterado:", articleId, "Novo status:", isFavoriteNow);
+    console.log("Favoritos atuais:", loadFavorites());
+    
     toast({
       title: isFavoriteNow ? "Adicionado aos favoritos" : "Removido dos favoritos",
       description: isFavoriteNow 
@@ -118,6 +131,40 @@ export const useArticles = () => {
         : "O artigo foi removido dos seus favoritos",
       variant: "default"
     });
+  };
+  
+  // Função para excluir um artigo
+  const handleDeleteArticle = async (articleId: string) => {
+    if (!articleId) return;
+    
+    setIsLoading(true);
+    
+    try {
+      await knowledgeService.deleteArticle(articleId);
+      
+      // Remover o artigo da lista local
+      setArticles(prev => prev.filter(article => article.id !== articleId));
+      
+      // Se o artigo excluído for o selecionado, fechar a visualização
+      if (selectedArticle?.id === articleId) {
+        setSelectedArticle(null);
+      }
+      
+      toast({
+        title: "Artigo excluído",
+        description: "O artigo foi excluído com sucesso",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error("Erro ao excluir artigo:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o artigo",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddTag = () => {
@@ -223,6 +270,7 @@ export const useArticles = () => {
     handleAddTag,
     handleRemoveTag,
     handleCreateArticle,
+    handleDeleteArticle,
     fetchArticles
   };
 };
