@@ -61,10 +61,17 @@ export const useArticles = () => {
     try {
       // Buscar o artigo completo da API
       const article = await knowledgeService.getArticleById(articleId);
-      setSelectedArticle(article);
+      
+      // Verificar se o artigo está marcado como favorito
+      const favorites = loadFavorites();
+      const isFavorite = favorites.includes(articleId);
+      
+      setSelectedArticle({
+        ...article,
+        favorite: isFavorite
+      });
       
       // Atualizar a contagem de visualizações localmente
-      // (isso é apenas para UI, idealmente o backend rastrearia as visualizações)
       setArticles(prev => 
         prev.map(a => a.id === articleId ? {...a, views: a.views + 1} : a)
       );
@@ -185,7 +192,6 @@ export const useArticles = () => {
   };
 
   // Função auxiliar para obter o nome da categoria pelo ID
-  // Em uma implementação completa, isso seria feito com dados da API
   const getCategoryNameById = (categoryId: string): string => {
     const categoryMap: Record<string, string> = {
       "sistemas": "Sistemas",

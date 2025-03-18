@@ -1,11 +1,10 @@
-
+//src/features/knowledge-base/CategorySidebar.tsx
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { Category } from "./types";
 import { cn } from "@/lib/utils";
-import { Book, Star, Plus } from "lucide-react";
+import { Book, Star, Plus, Trash2, FileText } from "lucide-react";
 
 interface CategorySidebarProps {
   categories: Category[];
@@ -14,6 +13,8 @@ interface CategorySidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   setIsCreatingArticle: (value: boolean) => void;
+  onAddCategory?: () => void;
+  onDeleteCategory?: (categoryId: string) => void;
 }
 
 export const CategorySidebar: React.FC<CategorySidebarProps> = ({
@@ -22,7 +23,9 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
   favoritesCount,
   activeTab,
   setActiveTab,
-  setIsCreatingArticle
+  setIsCreatingArticle,
+  onAddCategory,
+  onDeleteCategory
 }) => {
   return (
     <div className="space-y-4">
@@ -40,7 +43,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
             )}
             onClick={() => setActiveTab("todos")}
           >
-            <Book className="h-4 w-4" />
+            <FileText className="h-4 w-4" />
             <span>Todos os artigos</span>
             <span className="ml-auto text-xs bg-gray-100 px-2 py-1 rounded-full">
               {articleCount}
@@ -63,41 +66,55 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
             </span>
           </button>
           
-          <div className="pt-2 border-t mt-2">
+          <div className="pt-2 border-t mt-2 space-y-1">
             {categories.map((category) => (
-              <button 
-                key={category.name}
-                className={cn(
-                  "w-full text-left px-3 py-2 rounded-md flex items-center gap-2 transition-colors",
-                  activeTab === category.name.toLowerCase() 
-                    ? "bg-supernosso-light-red text-supernosso-red font-medium" 
-                    : "hover:bg-gray-100"
-                )}
-                onClick={() => setActiveTab(category.name.toLowerCase())}
+              <div 
+                key={category.id}
+                className="flex items-center"
               >
-                {category.icon}
-                <span>{category.name}</span>
-                <span className="ml-auto text-xs bg-gray-100 px-2 py-1 rounded-full">
-                  {category.count}
-                </span>
-              </button>
+                <button 
+                  className={cn(
+                    "flex-1 text-left px-3 py-2 rounded-md flex items-center gap-2 transition-colors",
+                    activeTab === category.id.toLowerCase() 
+                      ? "bg-supernosso-light-red text-supernosso-red font-medium" 
+                      : "hover:bg-gray-100"
+                  )}
+                  onClick={() => setActiveTab(category.id.toLowerCase())}
+                >
+                  {category.icon}
+                  <span>{category.name}</span>
+                  <span className="ml-auto text-xs bg-gray-100 px-2 py-1 rounded-full">
+                    {category.count}
+                  </span>
+                </button>
+                
+                {onDeleteCategory && (
+                  <button 
+                    className="p-1 text-gray-500 hover:text-red-500"
+                    onClick={() => onDeleteCategory(category.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Botão para adicionar novo artigo */}
-      <Dialog>
-        <DialogTrigger asChild>
+      {/* Botão de ação */}
+      <div className="flex flex-col gap-2">
+        {onAddCategory && (
           <Button 
-            className="w-full flex items-center gap-2 bg-supernosso-red hover:bg-supernosso-red/90"
-            onClick={() => setIsCreatingArticle(true)}
+            variant="outline"
+            className="w-full"
+            onClick={onAddCategory}
           >
-            <Plus className="h-4 w-4" />
-            Novo Artigo
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Categoria
           </Button>
-        </DialogTrigger>
-      </Dialog>
+        )}
+      </div>
     </div>
   );
 };

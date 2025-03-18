@@ -1,22 +1,50 @@
-//src\pages\KnowledgeBase.tsx
-import { useState } from "react";
+// src/pages/KnowledgeBase.tsx
+// src/pages/KnowledgeBase.tsx
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Import components and hooks
 import { ArticleForm } from "@/features/knowledge-base/ArticleForm";
 import { CategorySidebar } from "@/features/knowledge-base/CategorySidebar";
-import { categories } from "@/features/knowledge-base/mock-data";
+import { categories as initialCategories } from "@/features/knowledge-base/mock-data";
 import { SearchBar } from "@/features/knowledge-base/components/SearchBar";
 import { ArticleContent } from "@/features/knowledge-base/components/ArticleContent";
 import { useArticles } from "@/features/knowledge-base/hooks/useArticles";
 
+// Interface para categorias gerenciáveis
+interface CategoryWithStats {
+  id: string;
+  name: string;
+  icon: JSX.Element;
+  count: number;
+  color: string;
+}
+
 const KnowledgeBase = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
+  const [categories, setCategories] = useState<CategoryWithStats[]>(initialCategories);
+  // Garantindo que o diálogo comece fechado
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [isDeleteCategoryOpen, setIsDeleteCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [selectedCategoryToDelete, setSelectedCategoryToDelete] = useState<string | null>(null);
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
   
   const {
     articles,
@@ -38,6 +66,17 @@ const KnowledgeBase = () => {
     fetchArticles
   } = useArticles();
   
+  // Atualizar a contagem de artigos em cada categoria
+  useEffect(() => {
+    const updatedCategories = categories.map(category => {
+      // Contar artigos nesta categoria
+      const count = articles.filter(article => article.categoryId === category.id).length;
+      return { ...category, count };
+    });
+    
+    setCategories(updatedCategories);
+  }, [articles]);
+  
   const filteredArticles = articles.filter(article => {
     const matchesSearch = 
       article.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -53,6 +92,81 @@ const KnowledgeBase = () => {
     setIsCreatingArticle(false);
   };
   
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    
+    setIsSubmittingCategory(true);
+    
+    try {
+      const newId = newCategoryName.toLowerCase().replace(/\s+/g, '-');
+      
+      // Verificar se já existe uma categoria com este ID
+      if (categories.some(c => c.id === newId)) {
+        alert("Já existe uma categoria com este nome.");
+        return;
+      }
+      
+      // Adicionar nova categoria
+      const newCategory: CategoryWithStats = {
+        id: newId,
+        name: newCategoryName,
+        icon: initialCategories[0].icon, // Usar o mesmo ícone da primeira categoria como padrão
+        count: 0,
+        color: "blue-500" // Cor padrão
+      };
+      
+      setCategories([...categories, newCategory]);
+      setNewCategoryName("");
+      setIsAddCategoryOpen(false);
+    } catch (error) {
+      console.error("Erro ao adicionar categoria:", error);
+    } finally {
+      setIsSubmittingCategory(false);
+    }
+  };
+  
+  const handleDeleteCategory = () => {
+    if (!selectedCategoryToDelete) return;
+    
+    setIsSubmittingCategory(true);
+    
+    try {
+      // Verificar se existem artigos nesta categoria
+      const hasArticles = articles.some(article => article.categoryId === selectedCategoryToDelete);
+      
+      if (hasArticles) {
+        alert("Esta categoria contém artigos e não pode ser excluída.");
+        setIsDeleteCategoryOpen(false);
+        setSelectedCategoryToDelete(null);
+        setIsSubmittingCategory(false);
+        return;
+      }
+      
+      // Remover categoria
+      const updatedCategories = categories.filter(c => c.id !== selectedCategoryToDelete);
+      setCategories(updatedCategories);
+      
+      // Se a categoria atual for excluída, voltar para "todos"
+      if (activeTab === selectedCategoryToDelete) {
+        setActiveTab("todos");
+      }
+      
+      setIsDeleteCategoryOpen(false);
+      setSelectedCategoryToDelete(null);
+    } catch (error) {
+      console.error("Erro ao excluir categoria:", error);
+    } finally {
+      setIsSubmittingCategory(false);
+    }
+  };
+  
+  const handleSearch = () => {
+    // Esta função seria chamada quando o botão de busca for clicado
+    console.log("Buscando por:", searchTerm);
+    // A filtragem já está acontecendo no filteredArticles, então não precisamos
+    // de implementação adicional aqui
+  };
+  
   return (
     <Layout>
       <div className="space-y-6">
@@ -63,15 +177,23 @@ const KnowledgeBase = () => {
           </p>
         </div>
         
-        <Alert variant="info" className="bg-supernosso-light-red border-supernosso-red/30">
-          <Info className="h-4 w-4 text-supernosso-red" />
-          <AlertTitle>Integração com backend</AlertTitle>
-          <AlertDescription>
-            Esta base de conhecimento agora está conectada com a API do backend.
-          </AlertDescription>
-        </Alert>
-        
-        <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+        <div className="flex gap-2 items-center">
+          <div className="flex-1">
+            <Input 
+              placeholder="Pesquisar artigos, manuais ou palavras-chave..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch();
+                }
+              }}
+            />
+          </div>
+          <Button onClick={handleSearch} className="bg-supernosso-red hover:bg-supernosso-red/90">
+            Buscar
+          </Button>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Sidebar with Categories */}
@@ -83,6 +205,11 @@ const KnowledgeBase = () => {
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               setIsCreatingArticle={setIsCreatingArticle}
+              onAddCategory={() => setIsAddCategoryOpen(true)}
+              onDeleteCategory={(categoryId) => {
+                setSelectedCategoryToDelete(categoryId);
+                setIsDeleteCategoryOpen(true);
+              }}
             />
           </div>
           
@@ -119,6 +246,69 @@ const KnowledgeBase = () => {
           isSubmitting={isLoading}
         />
       </Dialog>
+      
+      {/* Dialog para adicionar nova categoria */}
+      <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nova Categoria</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="categoryName">Nome da Categoria</Label>
+              <Input 
+                id="categoryName"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Ex: Marketing"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsAddCategoryOpen(false)}
+              disabled={isSubmittingCategory}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleAddCategory}
+              className="bg-supernosso-red hover:bg-supernosso-red/90"
+              disabled={isSubmittingCategory || !newCategoryName.trim()}
+            >
+              {isSubmittingCategory ? "Criando..." : "Criar Categoria"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog para confirmar exclusão de categoria */}
+      <AlertDialog open={isDeleteCategoryOpen} onOpenChange={setIsDeleteCategoryOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Categoria</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita.
+              {selectedCategoryToDelete && categories.find(c => c.id === selectedCategoryToDelete)?.count > 0 && (
+                <p className="text-red-500 mt-2">
+                  Esta categoria contém artigos e não pode ser excluída.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmittingCategory}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCategory}
+              className="bg-red-500 hover:bg-red-600"
+              disabled={isSubmittingCategory || (selectedCategoryToDelete ? categories.find(c => c.id === selectedCategoryToDelete)?.count > 0 : false)}
+            >
+              {isSubmittingCategory ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
