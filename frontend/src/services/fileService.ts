@@ -156,7 +156,7 @@ export const fileService = {
   },
   
   // Baixar arquivo
-  downloadFile: async (fileId: string, fileName?: string): Promise<void> => {
+  downloadFile: async (fileId: string, originalFileName?: string): Promise<void> => {
   try {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -165,8 +165,18 @@ export const fileService = {
     
     const baseUrl = api.getBaseUrl();
     
-    // Imprimir todos os cabeçalhos para debug
-    console.log("Iniciando download do arquivo: " + fileId);
+    // Primeiro, obter os detalhes do arquivo se o nome original não foi fornecido
+    if (!originalFileName) {
+      try {
+        // Faça uma chamada para obter informações específicas do arquivo
+        const fileDetails = await api.get(`/files/info/${fileId}`);
+        if (fileDetails && fileDetails.originalName) {
+          originalFileName = fileDetails.originalName;
+        }
+      } catch (error) {
+        console.warn("Não foi possível obter detalhes do arquivo:", error);
+      }
+    }
     
     // Fazer requisição com autenticação
     const response = await fetch(`${baseUrl}/files/download/${fileId}`, {
@@ -182,39 +192,13 @@ export const fileService = {
       throw new Error(`Erro ao baixar arquivo: ${response.status}`);
     }
     
-    // Depurar os cabeçalhos recebidos
-    console.log("Cabeçalhos recebidos:");
-    response.headers.forEach((value, key) => {
-      console.log(`${key}: ${value}`);
-    });
-    
     // Obter o blob da resposta
     const blob = await response.blob();
-    console.log("Tipo do blob:", blob.type);
     
-    // Usar fileName se fornecido diretamente
-    let downloadFileName = fileName || 'arquivo_baixado';
+    // Nome do arquivo final
+    let downloadFileName = originalFileName || 'arquivo_baixado';
     
-    // Tentar extrair o nome do arquivo do Content-Disposition (maneira alternativa)
-    const contentDisposition = response.headers.get('Content-Disposition');
-    console.log("Content-Disposition:", contentDisposition);
-    
-    if (contentDisposition) {
-      // Método alternativo de extração
-      if (contentDisposition.includes('filename=')) {
-        const startPos = contentDisposition.indexOf('filename=') + 9;
-        let endPos = contentDisposition.indexOf(';', startPos);
-        if (endPos === -1) endPos = contentDisposition.length;
-        
-        downloadFileName = contentDisposition.substring(startPos, endPos)
-          .replace(/"/g, '')  // Remover aspas
-          .trim();            // Remover espaços em branco
-          
-        console.log("Nome do arquivo extraído:", downloadFileName);
-      }
-    }
-    
-    // Adicionar extensão baseada no MIME type se não houver extensão
+    // Adicionar extensão se não tiver, baseada no tipo MIME
     if (!downloadFileName.includes('.')) {
       const contentType = blob.type;
       let extension = contentType.split('/').pop();
@@ -229,8 +213,6 @@ export const fileService = {
         downloadFileName += `.${extension}`;
       }
     }
-    
-    console.log("Nome final do arquivo para download:", downloadFileName);
     
     // Criar URL para o blob
     const url = window.URL.createObjectURL(blob);

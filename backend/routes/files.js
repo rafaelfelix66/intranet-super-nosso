@@ -44,6 +44,12 @@ router.post('/folder', auth, filesController.createFolder);
 // @access  Private
 router.post('/upload', auth, upload.single('file'), filesController.uploadFile);
 
+// Em routes/files.js
+// @route   GET api/files/info/:id
+// @desc    Obter informações do arquivo
+// @access  Private
+router.get('/info/:id', auth, filesController.getFileInfo);
+
 // @route   GET api/files/download/:id
 // @desc    Download de arquivo
 // @access  Private

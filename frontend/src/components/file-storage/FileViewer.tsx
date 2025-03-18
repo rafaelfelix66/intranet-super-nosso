@@ -168,16 +168,24 @@ export const FileViewer = ({ file, isOpen, onOpenChange, onDownload }: FileViewe
         </div>
         
         <DialogFooter>
-          <div className="flex w-full justify-between items-center">
-            <div className="text-xs text-gray-500">
-              Última modificação: {file.modified}
-            </div>
-            <Button onClick={onDownload}>
-              <Download className="mr-2 h-4 w-4" />
-              Baixar
-            </Button>
-          </div>
-        </DialogFooter>
+		  <div className="flex w-full justify-between items-center">
+			 <div className="text-xs text-gray-500">
+			  Última modificação: {file.modified}
+			 </div>
+			 <Button onClick={() => {
+			  // Construir o nome completo do arquivo
+			  const fileName = file.name;
+			  const extension = file.extension;
+			  const fullFileName = extension ? `${fileName}.${extension}` : fileName;
+			  
+			  // Chamar download com o nome completo
+			  onDownload();
+			 }}>
+			  <Download className="mr-2 h-4 w-4" />
+			  Baixar
+			</Button>
+		  </div>
+		</DialogFooter>
       </DialogContent>
     </Dialog>
   );

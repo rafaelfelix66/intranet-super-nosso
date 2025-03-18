@@ -201,4 +201,44 @@ const deleteItem = async (req, res) => {
   }
 };
 
-module.exports = { getFiles, createFolder, uploadFile, downloadFile, shareItem, deleteItem };
+const getFileInfo = async (req, res) => {
+  try {
+    const file = await File.findById(req.params.id);
+    if (!file) {
+      return res.status(404).json({ msg: 'Arquivo não encontrado' });
+    }
+    const hasAccess = 
+      file.owner.toString() === req.usuario.id || 
+      file.isPublic || 
+      file.sharedWith.some(share => share.user.toString() === req.usuario.id);
+    if (!hasAccess) {
+      return res.status(401).json({ msg: 'Acesso negado' });
+    }
+    
+    // Retorna apenas as informações necessárias
+    res.json({
+      _id: file._id,
+      name: file.name,
+      originalName: file.originalName,
+      extension: file.extension,
+      mimeType: file.mimeType
+    });
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Arquivo não encontrado' });
+    }
+    res.status(500).send('Erro no servidor');
+  }
+};
+
+// Não esqueça de exportar
+module.exports = { 
+  getFiles, 
+  createFolder, 
+  uploadFile, 
+  downloadFile, 
+  shareItem, 
+  deleteItem,
+  getFileInfo // Adicione esta linha
+};

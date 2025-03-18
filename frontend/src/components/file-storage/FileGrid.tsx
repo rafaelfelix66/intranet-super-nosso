@@ -64,9 +64,14 @@ export const FileGrid = () => {
   };
   
   const handleDownload = (file: FileItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    downloadFile(file.id);
-  };
+  e.stopPropagation();
+  // Construir o nome completo do arquivo
+  const fileName = file.name;
+  const extension = file.extension;
+  const fullFileName = extension ? `${fileName}.${extension}` : fileName;
+  
+  downloadFile(file.id, fullFileName);
+};
   
   const handleDelete = (id: string) => {
     deleteItem(id);
@@ -181,13 +186,20 @@ export const FileGrid = () => {
       </div>
       
       {selectedFile && (
-        <FileViewer 
-          file={selectedFile} 
-          isOpen={fileViewerOpen} 
-          onOpenChange={setFileViewerOpen}
-          onDownload={() => downloadFile(selectedFile.id)}
-        />
-      )}
+	  <FileViewer 
+		 file={selectedFile} 
+		 isOpen={fileViewerOpen} 
+		 onOpenChange={setFileViewerOpen}
+		 onDownload={() => {
+		  // Construir o nome completo do arquivo
+		  const fileName = selectedFile.name;
+		  const extension = selectedFile.extension;
+		  const fullFileName = extension ? `${fileName}.${extension}` : fileName;
+		  
+		  downloadFile(selectedFile.id, fullFileName);
+		}}
+	  />
+)}
       
       {itemToRename && (
         <RenameDialog 
