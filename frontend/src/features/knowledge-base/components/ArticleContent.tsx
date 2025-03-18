@@ -1,9 +1,12 @@
-
+//src\features\knowledge-base\components\ArticleContent.tsx
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArticleList } from "../ArticleList";
 import { ArticleDetail } from "../ArticleDetail";
 import { Article, Category } from "../types";
+import { Loader2 } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface ArticleContentProps {
   selectedArticle: Article | null;
@@ -13,6 +16,9 @@ interface ArticleContentProps {
   onArticleClick: (articleId: string) => void;
   onToggleFavorite: (articleId: string, event: React.MouseEvent) => void;
   onCloseArticle: () => void;
+  isLoading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
 }
 
 export const ArticleContent: React.FC<ArticleContentProps> = ({
@@ -22,9 +28,42 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
   activeTab,
   onArticleClick,
   onToggleFavorite,
-  onCloseArticle
+  onCloseArticle,
+  isLoading = false,
+  error = null,
+  onRefresh
 }) => {
   if (selectedArticle) {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-supernosso-red mb-4" />
+          <p className="text-muted-foreground">Carregando artigo...</p>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <Alert variant="destructive" className="my-4">
+          <AlertTitle>Erro ao carregar o artigo</AlertTitle>
+          <AlertDescription>
+            {error}
+            <div className="mt-2 flex gap-2">
+              {onRefresh && (
+                <Button variant="outline" size="sm" onClick={onRefresh}>
+                  Tentar novamente
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={onCloseArticle}>
+                Voltar
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    
     return (
       <ArticleDetail 
         article={selectedArticle} 
@@ -32,6 +71,31 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
         onToggleFavorite={onToggleFavorite}
         categories={categories}
       />
+    );
+  }
+
+  if (isLoading && filteredArticles.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-supernosso-red mb-4" />
+        <p className="text-muted-foreground">Carregando artigos...</p>
+      </div>
+    );
+  }
+  
+  if (error && filteredArticles.length === 0) {
+    return (
+      <Alert variant="destructive" className="my-4">
+        <AlertTitle>Erro ao carregar artigos</AlertTitle>
+        <AlertDescription>
+          {error}
+          {onRefresh && (
+            <Button variant="outline" size="sm" className="mt-2" onClick={onRefresh}>
+              Tentar novamente
+            </Button>
+          )}
+        </AlertDescription>
+      </Alert>
     );
   }
 
@@ -55,6 +119,9 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
           categories={categories}
           selectedCategory={activeTab}
           onArticleClick={onArticleClick}
+          isLoading={isLoading}
+          error={error}
+          onRefresh={onRefresh}
         />
       </TabsContent>
       
@@ -66,6 +133,9 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
           categories={categories}
           selectedCategory={activeTab}
           onArticleClick={onArticleClick}
+          isLoading={isLoading}
+          error={error}
+          onRefresh={onRefresh}
         />
       </TabsContent>
       
@@ -76,6 +146,9 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
           categories={categories}
           selectedCategory={activeTab}
           onArticleClick={onArticleClick}
+          isLoading={isLoading}
+          error={error}
+          onRefresh={onRefresh}
         />
       </TabsContent>
     </Tabs>

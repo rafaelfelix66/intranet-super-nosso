@@ -1,11 +1,12 @@
-
-import { useState } from "react";
+//src\features\knowledge-base\hooks\useArticles.ts
+import { useState, useEffect } from "react";
 import { Article } from "../types";
-import { mockArticles } from "../mock-data";
 import { useToast } from "@/hooks/use-toast";
+import { knowledgeService } from "@/services/knowledgeService";
+import { loadFavorites, toggleFavorite as toggleFavoriteService } from "@/services/favoritesService";
 
 export const useArticles = () => {
-  const [articles, setArticles] = useState<Article[]>(mockArticles);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isCreatingArticle, setIsCreatingArticle] = useState(false);
   const [newArticle, setNewArticle] = useState<Partial<Article>>({
@@ -16,16 +17,66 @@ export const useArticles = () => {
     content: "",
   });
   const [newTag, setNewTag] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const handleArticleClick = (articleId: string) => {
-    const article = articles.find(a => a.id === articleId);
-    if (article) {
+  // Carregar artigos ao inicializar o componente
+  useEffect(() => {
+    fetchArticles();
+  }, []);
+  
+  // Função para buscar artigos da API
+  const fetchArticles = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const data = await knowledgeService.getArticles();
+      
+      // Carregar os favoritos do localStorage e marcar os artigos
+      const favorites = loadFavorites();
+      const articlesWithFavorites = data.map(article => ({
+        ...article,
+        favorite: favorites.includes(article.id)
+      }));
+      
+      setArticles(articlesWithFavorites);
+    } catch (error) {
+      console.error("Erro ao buscar artigos:", error);
+      setError("Não foi possível carregar os artigos. Tente novamente mais tarde.");
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os artigos",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleArticleClick = async (articleId: string) => {
+    setIsLoading(true);
+    
+    try {
+      // Buscar o artigo completo da API
+      const article = await knowledgeService.getArticleById(articleId);
       setSelectedArticle(article);
-      // Increment view count when an article is viewed
+      
+      // Atualizar a contagem de visualizações localmente
+      // (isso é apenas para UI, idealmente o backend rastrearia as visualizações)
       setArticles(prev => 
         prev.map(a => a.id === articleId ? {...a, views: a.views + 1} : a)
       );
+    } catch (error) {
+      console.error("Erro ao buscar detalhes do artigo:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os detalhes do artigo",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -35,13 +86,31 @@ export const useArticles = () => {
 
   const handleToggleFavorite = (articleId: string, event: React.MouseEvent) => {
     event.stopPropagation();
+    
+    // Toggle favorite no localStorage
+    const isFavoriteNow = toggleFavoriteService(articleId);
+    
+    // Atualizar o estado dos artigos
     setArticles(prev => 
       prev.map(article => 
         article.id === articleId 
-          ? {...article, favorite: !article.favorite} 
+          ? {...article, favorite: isFavoriteNow} 
           : article
       )
     );
+    
+    // Se o artigo selecionado for o que está sendo favoritado, atualizar ele também
+    if (selectedArticle?.id === articleId) {
+      setSelectedArticle(prev => prev ? {...prev, favorite: isFavoriteNow} : null);
+    }
+    
+    toast({
+      title: isFavoriteNow ? "Adicionado aos favoritos" : "Removido dos favoritos",
+      description: isFavoriteNow 
+        ? "O artigo foi adicionado aos seus favoritos" 
+        : "O artigo foi removido dos seus favoritos",
+      variant: "default"
+    });
   };
 
   const handleAddTag = () => {
@@ -61,8 +130,8 @@ export const useArticles = () => {
     });
   };
 
-  const handleCreateArticle = () => {
-    if (!newArticle.title || !newArticle.description || !newArticle.content) {
+  const handleCreateArticle = async () => {
+    if (!newArticle.title || !newArticle.content) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha todos os campos obrigatórios.",
@@ -71,37 +140,62 @@ export const useArticles = () => {
       return;
     }
 
-    const createdArticle: Article = {
-      id: Date.now().toString(),
-      title: newArticle.title || "",
-      description: newArticle.description || "",
-      categoryId: newArticle.categoryId || "sistemas",
-      tags: newArticle.tags || [],
-      views: 0,
-      date: new Date().toLocaleDateString(),
-      favorite: false,
-      content: newArticle.content || "",
-      pinned: false,
-      author: {
-        name: "Usuário Atual",
-        avatar: ""
-      }
+    setIsLoading(true);
+    
+    try {
+      // Mapear para o formato esperado pela API
+      const articleData = {
+        title: newArticle.title || "",
+        content: newArticle.content || "",
+        category: getCategoryNameById(newArticle.categoryId || "sistemas"),
+        tags: newArticle.tags || []
+      };
+      
+      // Chamar o serviço para criar o artigo
+      const createdArticle = await knowledgeService.createArticle(articleData);
+      
+      // Adicionar o novo artigo à lista
+      setArticles(prev => [createdArticle, ...prev]);
+      
+      // Resetar o formulário
+      setNewArticle({
+        title: "",
+        description: "",
+        categoryId: "sistemas",
+        tags: [],
+        content: "",
+      });
+      
+      setIsCreatingArticle(false);
+      
+      toast({
+        title: "Artigo criado",
+        description: "Seu artigo foi criado com sucesso!",
+      });
+    } catch (error) {
+      console.error("Erro ao criar artigo:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar o artigo. Tente novamente mais tarde.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Função auxiliar para obter o nome da categoria pelo ID
+  // Em uma implementação completa, isso seria feito com dados da API
+  const getCategoryNameById = (categoryId: string): string => {
+    const categoryMap: Record<string, string> = {
+      "sistemas": "Sistemas",
+      "rh": "RH",
+      "atendimento": "Atendimento", 
+      "operacional": "Operacional",
+      "seguranca": "Segurança"
     };
-
-    setArticles(prev => [...prev, createdArticle]);
-    setIsCreatingArticle(false);
-    setNewArticle({
-      title: "",
-      description: "",
-      categoryId: "sistemas",
-      tags: [],
-      content: "",
-    });
-
-    toast({
-      title: "Artigo criado",
-      description: "Seu artigo foi criado com sucesso!",
-    });
+    
+    return categoryMap[categoryId] || "Sistemas";
   };
 
   return {
@@ -110,6 +204,8 @@ export const useArticles = () => {
     isCreatingArticle,
     newArticle,
     newTag,
+    isLoading,
+    error,
     setArticles,
     setSelectedArticle,
     setIsCreatingArticle,
@@ -120,6 +216,7 @@ export const useArticles = () => {
     handleToggleFavorite,
     handleAddTag,
     handleRemoveTag,
-    handleCreateArticle
+    handleCreateArticle,
+    fetchArticles
   };
 };

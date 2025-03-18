@@ -1,8 +1,10 @@
-
+//src\pages\KnowledgeBase.tsx
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 
 // Import components and hooks
 import { ArticleForm } from "@/features/knowledge-base/ArticleForm";
@@ -22,6 +24,8 @@ const KnowledgeBase = () => {
     isCreatingArticle,
     newArticle,
     newTag,
+    isLoading,
+    error,
     setIsCreatingArticle,
     setNewArticle,
     setNewTag,
@@ -30,7 +34,8 @@ const KnowledgeBase = () => {
     handleToggleFavorite,
     handleAddTag,
     handleRemoveTag,
-    handleCreateArticle
+    handleCreateArticle,
+    fetchArticles
   } = useArticles();
   
   const filteredArticles = articles.filter(article => {
@@ -58,6 +63,14 @@ const KnowledgeBase = () => {
           </p>
         </div>
         
+        <Alert variant="info" className="bg-supernosso-light-red border-supernosso-red/30">
+          <Info className="h-4 w-4 text-supernosso-red" />
+          <AlertTitle>Integração com backend</AlertTitle>
+          <AlertDescription>
+            Esta base de conhecimento agora está conectada com a API do backend.
+          </AlertDescription>
+        </Alert>
+        
         <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -83,6 +96,9 @@ const KnowledgeBase = () => {
               onArticleClick={handleArticleClick}
               onToggleFavorite={handleToggleFavorite}
               onCloseArticle={handleCloseArticle}
+              isLoading={isLoading}
+              error={error}
+              onRefresh={fetchArticles}
             />
           </div>
         </div>
@@ -100,6 +116,7 @@ const KnowledgeBase = () => {
           handleCreateArticle={handleCreateArticle}
           onClose={handleCloseNewArticleDialog}
           categories={categories}
+          isSubmitting={isLoading}
         />
       </Dialog>
     </Layout>

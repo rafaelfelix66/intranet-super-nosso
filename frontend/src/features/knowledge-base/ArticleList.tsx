@@ -1,10 +1,11 @@
-
+//src\features\knowledge-base\ArticleList.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,27 +14,36 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Article, Category } from "./types";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 interface ArticleListProps {
   articles: Article[];
   categories: Category[];
   selectedCategory: string;
   onArticleClick: (articleId: string) => void;
+  isLoading: boolean;
+  error: string | null;
+  onRefresh?: () => void;
 }
 
 export function ArticleList({ 
   articles, 
   categories, 
   selectedCategory,
-  onArticleClick 
+  onArticleClick,
+  isLoading,
+  error,
+  onRefresh
 }: ArticleListProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   
   const filteredArticles = articles.filter(article => {
-    const matchesCategory = selectedCategory === "all" || article.categoryId === selectedCategory;
+    const matchesCategory = selectedCategory === "all" || 
+                           selectedCategory === "todos" || 
+                           article.categoryId === selectedCategory;
     const matchesSearch = article.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          article.content.toLowerCase().includes(searchQuery.toLowerCase());
+                          (article.content && article.content.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
   
@@ -46,6 +56,31 @@ export function ArticleList({
     const category = categories.find(c => c.id === categoryId);
     return category ? category.color : "gray";
   };
+  
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-supernosso-red mb-4" />
+        <p className="text-muted-foreground">Carregando artigos...</p>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Alert variant="destructive" className="my-4">
+        <AlertTitle>Erro ao carregar artigos</AlertTitle>
+        <AlertDescription>
+          {error}
+          {onRefresh && (
+            <Button variant="outline" size="sm" className="ml-2 mt-2" onClick={onRefresh}>
+              Tentar novamente
+            </Button>
+          )}
+        </AlertDescription>
+      </Alert>
+    );
+  }
   
   return (
     <div className="space-y-6">
@@ -81,7 +116,15 @@ export function ArticleList({
           <Card 
             key={article.id} 
             className="hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => onArticleClick(article.id)}
+            onClick={() => {
+              // Se temos uma função de click passada como prop, usamos ela
+              if (onArticleClick) {
+                onArticleClick(article.id);
+              } else {
+                // Caso contrário, navegamos para a página do artigo
+                navigate(`/base-conhecimento/${article.id}`);
+              }
+            }}
           >
             <CardContent className="p-4">
               <div className="flex justify-between items-start gap-4">
@@ -97,7 +140,7 @@ export function ArticleList({
                     )}
                   </div>
                   <h3 className="font-medium text-lg">{article.title}</h3>
-                  <p className="text-muted-foreground line-clamp-2">{article.content}</p>
+                  <p className="text-muted-foreground line-clamp-2">{article.description || article.content}</p>
                   
                   <div className="flex items-center justify-between pt-2">
                     <div className="flex items-center gap-2">

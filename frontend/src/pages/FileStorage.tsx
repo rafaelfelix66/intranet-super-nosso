@@ -16,15 +16,7 @@ const FileStorage = () => {
         <div className="space-y-6">
           <FileHeader />
           
-          <Alert variant="info" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Integração com o backend</AlertTitle>
-            <AlertDescription>
-              Este módulo agora está conectado à API de arquivos no backend.
-              Você pode criar pastas, fazer upload e download de arquivos.
-            </AlertDescription>
-          </Alert>
-          
+                  
           <Card>
             <CardHeader className="pb-3">
               <FileBreadcrumb />

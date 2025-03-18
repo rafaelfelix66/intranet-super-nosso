@@ -16,6 +16,8 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ArticlePage from "./pages/ArticlePage";
+import NewArticlePage from "./pages/NewArticlePage";
 
 // Update Tailwind CSS variables to include the new red color
 import { useEffect } from "react";
@@ -67,6 +69,8 @@ const App = () => {
                 <Route path="/timeline" element={<Timeline />} />
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/base-conhecimento" element={<KnowledgeBase />} />
+				<Route path="/base-conhecimento/:id" element={<ArticlePage />} />
+				<Route path="/base-conhecimento/novo" element={<NewArticlePage />} />
                 <Route path="/configuracoes" element={<Settings />} />
               </Route>
               
