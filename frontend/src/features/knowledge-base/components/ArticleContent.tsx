@@ -17,6 +17,7 @@ interface ArticleContentProps {
   onArticleClick: (articleId: string) => void;
   onToggleFavorite: (articleId: string, event: React.MouseEvent) => void;
   onCloseArticle: () => void;
+  onArticleDelete?: (articleId: string) => void;
   isLoading?: boolean;
   error?: string | null;
   onRefresh?: () => void;
@@ -33,6 +34,7 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
   onArticleClick,
   onToggleFavorite,
   onCloseArticle,
+  onArticleDelete,
   isLoading = false,
   error = null,
   onRefresh,
@@ -128,6 +130,7 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
               selectedCategory={activeTab}
               onArticleClick={onArticleClick}
               onToggleFavorite={onToggleFavorite}
+			  onArticleDelete={onArticleDelete}
               isLoading={isLoading}
               error={error}
               onRefresh={onRefresh}
@@ -143,6 +146,7 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
               selectedCategory={activeTab}
               onArticleClick={onArticleClick}
               onToggleFavorite={onToggleFavorite}
+			  onArticleDelete={onArticleDelete}
               isLoading={isLoading}
               error={error}
               onRefresh={onRefresh}
@@ -157,6 +161,7 @@ export const ArticleContent: React.FC<ArticleContentProps> = ({
               selectedCategory={activeTab}
               onArticleClick={onArticleClick}
               onToggleFavorite={onToggleFavorite}
+			  onArticleDelete={onArticleDelete}
               isLoading={isLoading}
               error={error}
               onRefresh={onRefresh}

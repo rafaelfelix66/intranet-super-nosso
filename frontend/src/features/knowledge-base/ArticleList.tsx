@@ -42,6 +42,7 @@ interface ArticleListProps {
   selectedCategory: string;
   onArticleClick: (articleId: string) => void;
   onToggleFavorite?: (articleId: string, event: React.MouseEvent) => void;
+  onArticleDelete?: (articleId: string) => void;
   isLoading: boolean;
   error: string | null;
   onRefresh?: () => void;
@@ -53,25 +54,23 @@ export function ArticleList({
   selectedCategory,
   onArticleClick,
   onToggleFavorite,
+  onArticleDelete,
   isLoading,
   error,
   onRefresh
 }: ArticleListProps) {
+
+   const deleteArticle = onArticleDelete;
   // Define a função de exclusão de artigo como global para que o diálogo possa acessá-la
-  if (typeof window !== 'undefined') {
-    window.handleDeleteArticle = (articleId: string) => {
-      // Implemente a lógica real de exclusão aqui
-      console.log("Excluindo artigo:", articleId);
-      // Se houver uma função handleDeleteArticle disponível no contexto global, use-a
-      const knowledgeBase = document.querySelector('[data-article-delete]');
-      if (knowledgeBase && knowledgeBase.dataset.articleDelete) {
-        const deleteFunc = new Function('return ' + knowledgeBase.dataset.articleDelete)();
-        if (typeof deleteFunc === 'function') {
-          deleteFunc(articleId);
-        }
-      }
-    };
-  }
+	if (typeof window !== 'undefined') {
+	  window.handleDeleteArticle = (articleId: string) => {
+		console.log("Excluindo artigo:", articleId);
+		// Aqui vamos apenas registrar a ação e depender da função onArticleDelete passada como prop
+		if (typeof deleteArticle === 'function') {
+		  deleteArticle(articleId);
+		}
+	  };
+	}
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [articleToDelete, setArticleToDelete] = useState<string | null>(null);
@@ -107,17 +106,17 @@ export function ArticleList({
   };
   
   const handleConfirmDelete = () => {
-    if (articleToDelete) {
-      console.log("Excluindo artigo:", articleToDelete);
-      // Se você tiver uma função real de exclusão, chame-a aqui
-      if (typeof window !== 'undefined' && window.handleDeleteArticle) {
-        window.handleDeleteArticle(articleToDelete);
-      }
-    }
-    // Fechar diálogo e limpar o estado
-    setIsDeleteDialogOpen(false);
-    setArticleToDelete(null);
-  };
+	  if (articleToDelete) {
+		console.log("Excluindo artigo:", articleToDelete);
+		// Chamar a função de exclusão passada como prop
+		if (onArticleDelete) {
+		  onArticleDelete(articleToDelete);
+		}
+	  }
+	  // Fechar diálogo e limpar o estado
+	  setIsDeleteDialogOpen(false);
+	  setArticleToDelete(null);
+	};
   
   if (isLoading) {
     return (

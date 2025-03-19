@@ -131,7 +131,6 @@ const getBaseUrl = () => {
 };
 
 // Componente melhorado para renderizar imagens com tratamento de erro
-// IMPORTANTE: Movido para antes de ser usado
 const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
   const [error, setError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string>("");
@@ -143,12 +142,20 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
       setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
       return;
     }
-    // Usar o caminho relativo para que o proxy (Nginx) redirecione para o backend
-    const fullSrc = `http://127.0.0.1${src}`; // Ex.: "/uploads/timeline/..."
-    console.log('Caminho da imagem:', {
+
+    // Construir URL completa para a imagem
+    let fullSrc = src;
+    if (!src.startsWith('http')) {
+      // Usar a URL base da sua API
+      const baseUrl = process.env.VITE_API_URL || 'http://localhost:3000';
+      fullSrc = `${baseUrl}${src.startsWith('/') ? '' : '/'}${src}`;
+    }
+
+    console.log('Carregando imagem:', {
       original: src,
-      normalizado: fullSrc
+      fullUrl: fullSrc
     });
+    
     setCurrentSrc(fullSrc);
   }, [src]);
 
@@ -159,7 +166,7 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
   };
 
   return (
-    <>
+    <div className="relative w-full h-full">
       <img 
         src={currentSrc}
         alt={alt || "Imagem"}
@@ -171,7 +178,7 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
           Não foi possível carregar a imagem
         </div>
       )}
-    </>
+    </div>
   );
 };
 
@@ -454,6 +461,21 @@ const Timeline = () => {
 
       try {
         const fetchedPosts = await fetchPosts();
+		// Adicione este bloco de logs aqui
+        fetchedPosts.forEach(post => {
+          console.log('Post com imagens:', {
+            postId: post.id,
+            content: post.content?.substring(0, 30) + '...',
+            images: post.images,
+            attachments: post.attachments,
+            imageUrls: post.images?.map(img => {
+              const baseUrl = process.env.NODE_ENV === 'development' 
+                ? 'http://localhost:3000' 
+                : window.location.origin;
+              return `${baseUrl}${img.startsWith('/') ? '' : '/'}${img}`;
+            })
+          });
+        });
         setPosts(fetchedPosts);
       } catch (error) {
         setError('Não foi possível carregar os posts');

@@ -4,27 +4,13 @@ const path = require('path'); // Adicione esta linha para importar o módulo pat
 
 // Função para normalizar caminhos de arquivos
 const normalizePath = (filePath) => {
-  // Remover quaisquer caminhos de servidor como /app/routes/
-  let normalizedPath = filePath.replace(/^\/app\/routes\//, '/');
+  if (!filePath) return '';
   
-  // Garantir que o caminho começa com /uploads/timeline/
-  if (!normalizedPath.includes('/uploads/timeline/')) {
-    // Se já tiver /uploads/ mas não /timeline/
-    if (normalizedPath.includes('/uploads/')) {
-      normalizedPath = normalizedPath.replace('/uploads/', '/uploads/timeline/');
-    } 
-    // Se não tiver /uploads/ no começo
-    else if (!normalizedPath.startsWith('/uploads/')) {
-      // Se já começar com /
-      if (normalizedPath.startsWith('/')) {
-        normalizedPath = `/uploads/timeline${normalizedPath}`;
-      } else {
-        normalizedPath = `/uploads/timeline/${normalizedPath}`;
-      }
-    }
-  }
+  // Remove qualquer caminho absoluto do servidor
+  const filename = path.basename(filePath);
   
-  return normalizedPath;
+  // Retorna sempre um caminho padronizado
+  return `/uploads/timeline/${filename}`;
 };
 
 // Obter todas as publicações

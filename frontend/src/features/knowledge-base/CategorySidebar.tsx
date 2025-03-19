@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Category } from "./types";
 import { cn } from "@/lib/utils";
 import { Book, Star, Plus, Trash2, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface CategorySidebarProps {
   categories: Category[];
@@ -27,6 +28,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
   onAddCategory,
   onDeleteCategory
 }) => {
+  const navigate = useNavigate();
   return (
     <div className="space-y-4">
       <Card>
@@ -104,17 +106,24 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
       {/* Botão de ação */}
       <div className="flex flex-col gap-2">
-        {onAddCategory && (
-          <Button 
-            variant="outline"
-            className="w-full"
-            onClick={onAddCategory}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Categoria
-          </Button>
-        )}
-      </div>
+		  <Button 
+			className="w-full bg-supernosso-red hover:bg-supernosso-red/90 text-white"
+			onClick={() => navigate("/base-conhecimento/novo")}
+		  >
+			<Plus className="h-4 w-4 mr-2" />
+			Novo Artigo
+		  </Button>
+		  {onAddCategory && (
+			<Button 
+			  variant="outline"
+			  className="w-full"
+			  onClick={onAddCategory}
+			>
+			  <Plus className="h-4 w-4 mr-2" />
+			  Nova Categoria
+			</Button>
+		  )}
+		</div>
     </div>
   );
 };

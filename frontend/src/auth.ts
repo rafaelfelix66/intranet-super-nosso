@@ -3,7 +3,6 @@ import axios from 'axios';
 
 // Função para determinar a URL da API com base no ambiente
 const getAuthUrl = (endpoint: string) => {
-	console.log('Dados enviados para /api/auth/login:', { email, password });
   // Em produção, usamos o proxy configurado no nginx
   if (window.location.hostname !== 'localhost') {
     return `/api/auth${endpoint}`;

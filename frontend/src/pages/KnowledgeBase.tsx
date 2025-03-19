@@ -2,10 +2,11 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +25,7 @@ import { categories as initialCategories } from "@/features/knowledge-base/mock-
 import { SearchBar } from "@/features/knowledge-base/components/SearchBar";
 import { ArticleContent } from "@/features/knowledge-base/components/ArticleContent";
 import { useArticles } from "@/features/knowledge-base/hooks/useArticles";
+import { loadCategories, saveCategories, createCategory as createCategoryService } from "@/services/categoryService";
 
 // Interface para categorias gerenciáveis
 interface CategoryWithStats {
@@ -35,6 +37,7 @@ interface CategoryWithStats {
 }
 
 const KnowledgeBase = () => {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
   const [categories, setCategories] = useState<CategoryWithStats[]>(initialCategories);
@@ -68,21 +71,23 @@ const KnowledgeBase = () => {
   
   // Carregar categorias salvas do localStorage quando o componente é montado
   useEffect(() => {
-    const savedCategories = localStorage.getItem('knowledge_categories');
-    if (savedCategories) {
-      try {
-        const parsedCategories = JSON.parse(savedCategories);
-        // Manter o mesmo formato dos ícones que vêm das categorias iniciais
-        const categoriesWithIcons = parsedCategories.map(cat => ({
-          ...cat,
-          icon: initialCategories.find(c => c.id === cat.id)?.icon || initialCategories[0].icon
-        }));
-        setCategories(categoriesWithIcons);
-      } catch (error) {
-        console.error('Erro ao carregar categorias:', error);
-      }
+  try {
+    const savedCategories = loadCategories();
+    if (savedCategories && savedCategories.length > 0) {
+      // Manter o mesmo formato dos ícones que vêm das categorias iniciais
+      const categoriesWithIcons = savedCategories.map(cat => ({
+        ...cat,
+        icon: initialCategories.find(c => c.id === cat.id)?.icon || initialCategories[0].icon
+      }));
+      setCategories(categoriesWithIcons);
+    } else {
+      // Se não houver categorias salvas, salvar as categorias iniciais
+      saveCategories(initialCategories);
     }
-  }, []);
+  } catch (error) {
+    console.error('Erro ao carregar categorias:', error);
+  }
+}, []);
 
   // Atualizar a contagem de artigos em cada categoria
   useEffect(() => {
@@ -97,16 +102,13 @@ const KnowledgeBase = () => {
   
   // Salvar categorias no localStorage quando elas são alteradas
   useEffect(() => {
-    try {
-      // Remover propriedades do React que não precisamos salvar
-      const categoriesToSave = categories.map(({ id, name, count, color }) => ({ 
-        id, name, count, color 
-      }));
-      localStorage.setItem('knowledge_categories', JSON.stringify(categoriesToSave));
-    } catch (error) {
-      console.error('Erro ao salvar categorias:', error);
-    }
-  }, [categories]);
+  try {
+    // Usar o serviço para salvar categorias
+    saveCategories(categories);
+  } catch (error) {
+    console.error('Erro ao salvar categorias:', error);
+  }
+}, [categories]);
   
   const filteredArticles = articles.filter(article => {
     const matchesSearch = 
@@ -123,73 +125,94 @@ const KnowledgeBase = () => {
     setIsCreatingArticle(false);
   };
   
-  const handleAddCategory = () => {
-    if (!newCategoryName.trim()) return;
-    
-    setIsSubmittingCategory(true);
-    
-    try {
-      const newId = newCategoryName.toLowerCase().replace(/\s+/g, '-');
-      
-      // Verificar se já existe uma categoria com este ID
-      if (categories.some(c => c.id === newId)) {
-        alert("Já existe uma categoria com este nome.");
-        return;
-      }
-      
-      // Adicionar nova categoria
-      const newCategory: CategoryWithStats = {
-        id: newId,
-        name: newCategoryName,
-        icon: initialCategories[0].icon, // Usar o mesmo ícone da primeira categoria como padrão
-        count: 0,
-        color: "blue-500" // Cor padrão
-      };
-      
-      setCategories([...categories, newCategory]);
-      setNewCategoryName("");
-      setIsAddCategoryOpen(false);
-    } catch (error) {
-      console.error("Erro ao adicionar categoria:", error);
-    } finally {
-      setIsSubmittingCategory(false);
-    }
-  };
+  const handleAddCategory = async () => {
+  if (!newCategoryName.trim()) return;
   
-  const handleDeleteCategory = () => {
-    if (!selectedCategoryToDelete) return;
+  setIsSubmittingCategory(true);
+  
+  try {
+    // Usar o serviço para criar a categoria
+    const newCategory = await createCategoryService(
+      newCategoryName,
+      initialCategories[0].icon, // Usar o mesmo ícone da primeira categoria como padrão
+      "blue-500" // Cor padrão
+    );
     
-    setIsSubmittingCategory(true);
+    // Adicionar a nova categoria à lista
+    setCategories([...categories, newCategory]);
+    setNewCategoryName("");
+    setIsAddCategoryOpen(false);
     
-    try {
-      // Verificar se existem artigos nesta categoria
-      const hasArticles = articles.some(article => article.categoryId === selectedCategoryToDelete);
-      
-      if (hasArticles) {
-        alert("Esta categoria contém artigos e não pode ser excluída.");
-        setIsDeleteCategoryOpen(false);
-        setSelectedCategoryToDelete(null);
-        setIsSubmittingCategory(false);
-        return;
-      }
-      
-      // Remover categoria
-      const updatedCategories = categories.filter(c => c.id !== selectedCategoryToDelete);
-      setCategories(updatedCategories);
-      
-      // Se a categoria atual for excluída, voltar para "todos"
-      if (activeTab === selectedCategoryToDelete) {
-        setActiveTab("todos");
-      }
-      
+    toast({
+      title: "Categoria criada",
+      description: `A categoria "${newCategoryName}" foi criada com sucesso!`,
+    });
+  } catch (error) {
+    console.error("Erro ao adicionar categoria:", error);
+    toast({
+      title: "Erro",
+      description: error instanceof Error ? error.message : "Erro ao criar categoria",
+      variant: "destructive"
+    });
+  } finally {
+    setIsSubmittingCategory(false);
+  }
+};
+  
+  const handleDeleteCategory = async () => {
+  if (!selectedCategoryToDelete) return;
+  
+  setIsSubmittingCategory(true);
+  
+  try {
+    // Verificar se existem artigos nesta categoria
+    const hasArticles = articles.some(article => article.categoryId === selectedCategoryToDelete);
+    
+    if (hasArticles) {
+      toast({
+        title: "Não foi possível excluir",
+        description: "Esta categoria contém artigos e não pode ser excluída.",
+        variant: "destructive"
+      });
       setIsDeleteCategoryOpen(false);
       setSelectedCategoryToDelete(null);
-    } catch (error) {
-      console.error("Erro ao excluir categoria:", error);
-    } finally {
       setIsSubmittingCategory(false);
+      return;
     }
-  };
+    
+    // Usar o serviço para excluir a categoria
+    const deleteFromStorage = async () => {
+      const updatedCategories = categories.filter(c => c.id !== selectedCategoryToDelete);
+      setCategories(updatedCategories);
+      // Atualizar explicitamente o localStorage para garantir a persistência
+      saveCategories(updatedCategories);
+    };
+    
+    await deleteFromStorage();
+    
+    // Se a categoria atual for excluída, voltar para "todos"
+    if (activeTab === selectedCategoryToDelete) {
+      setActiveTab("todos");
+    }
+    
+    toast({
+      title: "Categoria excluída",
+      description: "A categoria foi excluída com sucesso.",
+    });
+    
+    setIsDeleteCategoryOpen(false);
+    setSelectedCategoryToDelete(null);
+  } catch (error) {
+    console.error("Erro ao excluir categoria:", error);
+    toast({
+      title: "Erro",
+      description: error instanceof Error ? error.message : "Erro ao excluir categoria",
+      variant: "destructive"
+    });
+  } finally {
+    setIsSubmittingCategory(false);
+  }
+};
   
   const handleSearch = () => {
     // Esta função seria chamada quando o botão de busca for clicado
@@ -200,7 +223,7 @@ const KnowledgeBase = () => {
   
   return (
     <Layout>
-      <div className="space-y-6" data-article-delete={handleDeleteArticle.toString()}>
+      <div className="space-y-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold">Base de Conhecimento</h1>
           <p className="text-muted-foreground">
@@ -236,6 +259,7 @@ const KnowledgeBase = () => {
               onArticleClick={handleArticleClick}
               onToggleFavorite={handleToggleFavorite}
               onCloseArticle={handleCloseArticle}
+			  onArticleDelete={handleDeleteArticle}
               isLoading={isLoading}
               error={error}
               onRefresh={fetchArticles}
@@ -266,37 +290,40 @@ const KnowledgeBase = () => {
       {/* Dialog para adicionar nova categoria */}
       <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nova Categoria</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="categoryName">Nome da Categoria</Label>
-              <Input 
-                id="categoryName"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Ex: Marketing"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setIsAddCategoryOpen(false)}
-              disabled={isSubmittingCategory}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleAddCategory}
-              className="bg-supernosso-red hover:bg-supernosso-red/90"
-              disabled={isSubmittingCategory || !newCategoryName.trim()}
-            >
-              {isSubmittingCategory ? "Criando..." : "Criar Categoria"}
-            </Button>
-          </div>
-        </DialogContent>
+		  <DialogHeader>
+			<DialogTitle>Nova Categoria</DialogTitle>
+			<DialogDescription>
+			  Adicione uma nova categoria para organizar seus artigos.
+			</DialogDescription>
+		  </DialogHeader>
+		  <div className="space-y-4 py-4">
+			<div className="space-y-2">
+			  <Label htmlFor="categoryName">Nome da Categoria</Label>
+			  <Input 
+				id="categoryName"
+				value={newCategoryName}
+				onChange={(e) => setNewCategoryName(e.target.value)}
+				placeholder="Ex: Marketing"
+			  />
+			</div>
+		  </div>
+		  <div className="flex justify-end gap-2">
+			<Button 
+			  variant="outline" 
+			  onClick={() => setIsAddCategoryOpen(false)}
+			  disabled={isSubmittingCategory}
+			>
+			  Cancelar
+			</Button>
+			<Button 
+			  onClick={handleAddCategory}
+			  className="bg-supernosso-red hover:bg-supernosso-red/90"
+			  disabled={isSubmittingCategory || !newCategoryName.trim()}
+			>
+			  {isSubmittingCategory ? "Criando..." : "Criar Categoria"}
+			</Button>
+		  </div>
+		</DialogContent>
       </Dialog>
       
       {/* Dialog para confirmar exclusão de categoria */}

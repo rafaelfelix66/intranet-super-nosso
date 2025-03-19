@@ -20,6 +20,8 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   }
 });
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Criar diretórios de upload necessários
 const fs = require('fs');
 
