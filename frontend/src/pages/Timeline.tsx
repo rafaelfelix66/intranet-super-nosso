@@ -137,32 +137,23 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
 
   useEffect(() => {
     setError(false);
+    
     if (!src || typeof src !== 'string') {
       setError(true);
-      setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+      setCurrentSrc("/placeholder-image.png");
       return;
     }
 
-    // Construir URL completa para a imagem
-    let fullSrc = src;
-    if (!src.startsWith('http')) {
-      // Usar a URL base da sua API
-      const baseUrl = process.env.VITE_API_URL || 'http://localhost:3000';
-      fullSrc = `${baseUrl}${src.startsWith('/') ? '' : '/'}${src}`;
-    }
-
-    console.log('Carregando imagem:', {
-      original: src,
-      fullUrl: fullSrc
-    });
+    // Log detalhado do caminho da imagem
+    console.log(`Tentando carregar imagem: ${src}`);
     
-    setCurrentSrc(fullSrc);
+    setCurrentSrc(src);
   }, [src]);
 
   const handleError = () => {
     console.error(`Erro ao carregar imagem: ${currentSrc}`);
     setError(true);
-    setCurrentSrc("https://via.placeholder.com/400x300?text=Imagem+não+disponível");
+    setCurrentSrc("/placeholder-image.png");
   };
 
   return (
@@ -248,7 +239,7 @@ const fetchPosts = async () => {
         
         // Processamento de attachments e images
         // Primeiro, verificar campo images
-        if (post.images && post.images.length > 0) {
+        if (post.attachments && post.attachments.length > 0) {
           formattedPost.images = post.images
             .filter(img => img) // Filtrar valores vazios
             .map(img => typeof img === 'string' ? normalizePath(img) : 
@@ -262,9 +253,9 @@ const fetchPosts = async () => {
             .filter(attachment => attachment) // Filtrar valores vazios
             .map(attachment => {
               if (typeof attachment === 'string') {
-                return normalizePath(attachment);
+                return attachment.startsWith('/') ? attachment : `/${attachment}`;
               } else if (attachment.type) {
-                return normalizePath(attachment.type);
+                return attachment.type.startsWith('/') ? attachment.type : `/${attachment.type}`;
               }
               return '';
             })
@@ -273,16 +264,6 @@ const fetchPosts = async () => {
         
         console.log(`Post ${post._id} - imagens processadas:`, formattedPost.images);
         
-        // Processamento de eventos
-        if (post.eventData) {
-          try {
-            formattedPost.event = typeof post.eventData === 'string' 
-              ? JSON.parse(post.eventData)
-              : post.eventData;
-          } catch (e) {
-            console.error('Erro ao processar dados do evento:', e);
-          }
-        }
         
         return formattedPost;
       });

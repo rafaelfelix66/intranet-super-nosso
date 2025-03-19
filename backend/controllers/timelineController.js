@@ -6,10 +6,20 @@ const path = require('path'); // Adicione esta linha para importar o módulo pat
 const normalizePath = (filePath) => {
   if (!filePath) return '';
   
-  // Remove qualquer caminho absoluto do servidor
-  const filename = path.basename(filePath);
+  // Se já for uma URL completa, retorna como está
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
   
-  // Retorna sempre um caminho padronizado
+  // Remover 'uploads/' inicial se existir
+  const cleanPath = filePath.startsWith('uploads/') 
+    ? filePath.substring(8) 
+    : filePath;
+  
+  // Remover qualquer caminho absoluto do servidor e obter apenas o nome do arquivo
+  const filename = path.basename(cleanPath);
+  
+  // Retorna o caminho completo
   return `/uploads/timeline/${filename}`;
 };
 

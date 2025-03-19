@@ -80,6 +80,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeline')));
 
+// Adicione logs para depuração
+app.use('/uploads', (req, res, next) => {
+  console.log(`Requisição de arquivo estático: ${req.url}`);
+  next();
+});
 // Middleware para logging de requisições
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`, {
