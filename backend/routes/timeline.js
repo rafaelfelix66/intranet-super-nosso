@@ -70,4 +70,53 @@ router.post('/:id/comment', auth, timelineController.addComment);
 router.put('/:id/like', auth, timelineController.likePost);
 console.log('Rotas da timeline registradas com sucesso');
 
+// @route   GET api/timeline/check-image/:filename
+// @desc    Verificar se uma imagem específica existe e pode ser acessada
+// @access  Public
+router.get('/check-image/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const timelinePath = path.join(__dirname, '../uploads/timeline');
+  const filePath = path.join(timelinePath, filename);
+  
+  console.log(`Verificando arquivo: ${filename}`);
+  console.log(`Caminho completo: ${filePath}`);
+  
+  // Verificar se o arquivo existe
+  fs.access(filePath, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error(`Arquivo não encontrado: ${filePath}`);
+      return res.status(404).json({ 
+        error: 'Arquivo não encontrado',
+        exists: false,
+        filename,
+        path: filePath
+      });
+    }
+    
+    // Verificar detalhes do arquivo
+    fs.stat(filePath, (err, stats) => {
+      if (err) {
+        return res.status(500).json({ 
+          error: 'Erro ao obter informações do arquivo',
+          message: err.message
+        });
+      }
+      
+      console.log(`Arquivo encontrado: ${filePath}`);
+      console.log(`Tamanho: ${stats.size} bytes`);
+      
+      res.json({
+        exists: true,
+        filename,
+        path: filePath,
+        size: stats.size,
+        isFile: stats.isFile(),
+        created: stats.birthtime,
+        modified: stats.mtime,
+        url: `/uploads/timeline/${filename}`
+      });
+    });
+  });
+});
+
 module.exports = router;

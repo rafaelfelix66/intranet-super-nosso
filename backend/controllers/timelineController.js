@@ -1,8 +1,8 @@
 // controllers/timelineController.js
 const { Post, User } = require('../models');
-const path = require('path'); // Adicione esta linha para importar o módulo path
+const path = require('path');
 
-// Função para normalizar caminhos de arquivos
+// Função melhorada para normalizar caminhos de arquivos
 const normalizePath = (filePath) => {
   if (!filePath) return '';
   
@@ -11,15 +11,10 @@ const normalizePath = (filePath) => {
     return filePath;
   }
   
-  // Remover 'uploads/' inicial se existir
-  const cleanPath = filePath.startsWith('uploads/') 
-    ? filePath.substring(8) 
-    : filePath;
+  // Obter apenas o nome do arquivo, ignorando qualquer diretório
+  const filename = path.basename(filePath);
   
-  // Remover qualquer caminho absoluto do servidor e obter apenas o nome do arquivo
-  const filename = path.basename(cleanPath);
-  
-  // Retorna o caminho completo
+  // Retornar caminho padronizado
   return `/uploads/timeline/${filename}`;
 };
 
@@ -38,35 +33,20 @@ const getPosts = async (req, res) => {
       // Converte o post para um objeto simples (sem métodos do mongoose)
       const postObj = post.toObject();
       
-      // Garantir que o campo images existe
-      if (!postObj.images) {
-        postObj.images = [];
-      }
-      
       // Normalizar caminhos em attachments
       if (postObj.attachments && postObj.attachments.length > 0) {
-        postObj.attachments = postObj.attachments.map(attachment => 
-          typeof attachment === 'string' ? normalizePath(attachment) : attachment
-        );
-      }
-      
-      // Normalizar caminhos em images
-      if (postObj.images && postObj.images.length > 0) {
-        postObj.images = postObj.images.map(img => 
-          typeof img === 'string' ? normalizePath(img) : img
-        );
-      }
-      
-      // Garantir que images tem os mesmos valores que attachments
-      if (postObj.attachments && postObj.attachments.length > 0) {
-        if (!postObj.images) postObj.images = [];
-        
-        // Adicionar a images quaisquer attachments que não estejam lá
-        postObj.attachments.forEach(attachment => {
-          if (!postObj.images.includes(attachment)) {
-            postObj.images.push(attachment);
+        postObj.attachments = postObj.attachments.map(attachment => {
+          if (typeof attachment === 'string') {
+            return normalizePath(attachment);
           }
+          return attachment;
         });
+      }
+      
+      // Garantir que o campo images existe e contém os mesmos valores que attachments
+      postObj.images = [];
+      if (postObj.attachments && postObj.attachments.length > 0) {
+        postObj.images = [...postObj.attachments];
       }
       
       // Log detalhado para depuração
@@ -74,15 +54,15 @@ const getPosts = async (req, res) => {
         user: postObj.user ? postObj.user.nome : 'unknown',
         text: postObj.text.substr(0, 20) + (postObj.text.length > 20 ? '...' : ''),
         attachmentsCount: postObj.attachments ? postObj.attachments.length : 0,
-        imagesCount: postObj.images ? postObj.images.length : 0
+        imagesCount: postObj.images ? postObj.images.length : 0,
+        attachments: postObj.attachments,
+        images: postObj.images
       });
       
       return postObj;
     });
     
-    console.log('Posts formatados com sucesso:', 
-      formattedPosts.length
-    );
+    console.log('Posts formatados com sucesso:', formattedPosts.length);
     return res.json(formattedPosts);
   } catch (err) {
     console.error('Erro ao buscar posts:', err.message);
@@ -90,12 +70,16 @@ const getPosts = async (req, res) => {
   }
 };
 
-
 // Criar uma publicação
 const createPost = async (req, res) => {
   try {
     const { text, eventData } = req.body;
-    console.log('Tentativa de criar post:', { text, user: req.usuario.id, files: req.files ? 'Sim' : 'Não', eventData: !!eventData });
+    console.log('Tentativa de criar post:', { 
+      text, 
+      user: req.usuario.id, 
+      files: req.files ? req.files.length : 0,
+      eventData: !!eventData 
+    });
     
     if (!text && !eventData) {
       console.log('Texto vazio e sem dados de evento, rejeitando post');
@@ -103,35 +87,24 @@ const createPost = async (req, res) => {
     }
     
     // Verificar como os arquivos são enviados pelo Multer
-    console.log('Detalhes de req.files:', req.files);
+    console.log('Detalhes de req.files:', 
+      req.files ? JSON.stringify(req.files.map(f => ({ name: f.originalname, path: f.path }))) : 'Nenhum arquivo'
+    );
     
-    // Processar anexos se houver arquivos enviados - CORREÇÃO AQUI
+    // Processar anexos se houver arquivos enviados
     let attachments = [];
-    let images = [];
     
-    if (req.files && Array.isArray(req.files)) {
-      // Se req.files for diretamente um array
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
       attachments = req.files.map(file => {
         const filename = path.basename(file.path);
         const normalizedPath = `/uploads/timeline/${filename}`;
-        console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath}`);
-        return normalizedPath;
+        console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath} (${file.mimetype})`);
+        return {
+          path: normalizedPath,
+          contentType: file.mimetype,
+          name: file.originalname
+        };
       });
-      
-      // Usar os mesmos caminhos para imagens
-      images = [...attachments];
-    } else if (req.files && req.files.attachments) {
-      // Se req.files.attachments existir (comum quando o campo do formulário é chamado "attachments")
-      const files = Array.isArray(req.files.attachments) ? req.files.attachments : [req.files.attachments];
-      attachments = files.map(file => {
-        const filename = path.basename(file.path);
-        const normalizedPath = `/uploads/timeline/${filename}`;
-        console.log(`Processando arquivo: ${file.originalname} -> ${normalizedPath}`);
-        return normalizedPath;
-      });
-      
-      // Usar os mesmos caminhos para imagens
-      images = [...attachments];
     }
     
     console.log('Anexos processados:', attachments);
@@ -147,13 +120,15 @@ const createPost = async (req, res) => {
       }
     }
     
-    // Criar o objeto Post
+    // Criar o objeto Post com os caminhos normalizados
+    const normalizedAttachments = attachments.map(att => att.path);
+    
     const newPost = new Post({
       text,
       user: req.usuario.id,
-      attachments, // Agora array de strings
+      attachments: normalizedAttachments,
       eventData: parsedEventData,
-      images     // Também array de strings
+      images: normalizedAttachments
     });
     
     const post = await newPost.save();
@@ -210,7 +185,6 @@ const likePost = async (req, res) => {
       console.log('Post não encontrado:', req.params.id);
       return res.status(404).json({ msg: 'Publicação não encontrada' });
     }
-    console.log('Post antes do like:', post);
     
     // Verificar se já curtiu e remover se sim, adicionar se não
     const index = post.likes.findIndex(like => like.toString() === req.usuario.id);

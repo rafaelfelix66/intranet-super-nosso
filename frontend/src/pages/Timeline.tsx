@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+//src\pages\Timeline.tsx
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { 
@@ -18,7 +19,9 @@ import {
   Film,
   Calendar,
   Plus,
-  X
+  X,
+  Settings,
+  FileSearch
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -130,43 +133,251 @@ const getBaseUrl = () => {
   return 'http://localhost:3000'; // Em desenvolvimento local
 };
 
+// Função para testar o acesso a um arquivo
+const testImageAccess = async (imagePath: string) => {
+  try {
+    if (!imagePath) {
+      console.error('Caminho de imagem vazio');
+      return { success: false, error: 'Caminho vazio' };
+    }
+    
+    // Extrair o nome do arquivo do caminho
+    const filename = imagePath.split('/').pop();
+    if (!filename) {
+      console.error('Nome de arquivo inválido');
+      return { success: false, error: 'Nome de arquivo inválido' };
+    }
+    
+    console.log(`Testando acesso à imagem: ${filename}`);
+    
+    // Verificar se o arquivo existe no backend
+    const checkResponse = await api.get(`/timeline/check-image/${filename}`);
+    console.log('Resposta da verificação de arquivo:', checkResponse);
+    
+    // Testar carregamento direto da imagem
+    const imageUrl = window.location.hostname === 'localhost' 
+      ? `http://localhost:3000/uploads/timeline/${filename}`
+      : `/uploads/timeline/${filename}`;
+      
+    console.log(`Tentando carregar imagem diretamente: ${imageUrl}`);
+    
+    // Usar fetch para verificar se a imagem pode ser acessada
+    const fetchResponse = await fetch(imageUrl);
+    const status = fetchResponse.status;
+    const ok = fetchResponse.ok;
+    
+    console.log(`Resultado do fetch: status=${status}, ok=${ok}`);
+    
+    return {
+      success: ok,
+      status,
+      fileCheck: checkResponse,
+      testedUrl: imageUrl
+    };
+  } catch (error) {
+    console.error('Erro ao testar acesso à imagem:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido'
+    };
+  }
+};
+
+// Componente melhorado para renderizar imagens com tratamento de erro
 // Componente melhorado para renderizar imagens com tratamento de erro
 const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
   const [error, setError] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState<string>("");
+  const [loaded, setLoaded] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
 
   useEffect(() => {
+    // Resetar estados quando a fonte muda
     setError(false);
+    setLoaded(false);
+    setRetryCount(0);
     
     if (!src || typeof src !== 'string') {
+      console.log('ImageRenderer: src inválido', src);
       setError(true);
-      setCurrentSrc("/placeholder-image.png");
+      setCurrentSrc("/placeholder.svg");
       return;
     }
 
-    // Log detalhado do caminho da imagem
-    console.log(`Tentando carregar imagem: ${src}`);
-    
-    setCurrentSrc(src);
-  }, [src]);
+     // Função para processar o URL da imagem
+    const processImageUrl = () => {
+      // Para desenvolvimento local em localhost, tentamos prefixar o host do backend
+      if (!src.startsWith('http') && window.location.hostname === 'localhost') {
+        const path = src.startsWith('/') ? src : `/${src}`;
+        return `http://localhost:3000${path}`;
+      }
+      return src;
+    };
 
+    const fullSrc = processImageUrl();
+    console.log(`ImageRenderer: Tentando carregar imagem: ${fullSrc} (original: ${src}), tentativa: ${retryCount + 1}`);
+    setCurrentSrc(fullSrc);
+    
+    // Pré-carregar a imagem para garantir o carregamento
+    const preloadImage = new Image();
+    preloadImage.onload = () => {
+      console.log(`ImageRenderer: Pré-carregamento bem-sucedido: ${fullSrc}`);
+      setLoaded(true);
+      setError(false);
+    };
+    
+    preloadImage.onerror = () => {
+      console.error(`ImageRenderer: Erro no pré-carregamento: ${fullSrc}`);
+      // Tentar URL alternativa ou placeholders
+      if (retryCount < maxRetries) {
+        setRetryCount(prev => prev + 1);
+        
+        // Em caso de erro, experimentar uma URL alternativa
+        if (fullSrc.includes('localhost')) {
+          // Tentar sem o prefixo do host
+          const altSrc = src.startsWith('/') ? src : `/${src}`;
+          console.log(`ImageRenderer: Tentando URL alternativa: ${altSrc}, tentativa: ${retryCount + 2}`);
+          setCurrentSrc(altSrc);
+        } else if (retryCount === 0) {
+          // Tentar com prefixo em caso de falha inicial
+          const altSrc = `http://localhost:3000${src.startsWith('/') ? '' : '/'}${src}`;
+          console.log(`ImageRenderer: Tentando URL com prefixo: ${altSrc}, tentativa: ${retryCount + 2}`);
+          setCurrentSrc(altSrc);
+        } else {
+          // Última tentativa: URL original absoluta
+          const filename = src.split('/').pop();
+          if (filename) {
+            const absoluteSrc = `/uploads/timeline/${filename}`;
+            console.log(`ImageRenderer: Tentativa final com caminho absoluto: ${absoluteSrc}`);
+            setCurrentSrc(absoluteSrc);
+          } else {
+            setError(true);
+            setCurrentSrc("/placeholder.svg");
+          }
+        }
+      } else {
+        setError(true);
+        setCurrentSrc("/placeholder.svg");
+      }
+    };
+    
+    preloadImage.src = fullSrc;
+  }, [src, retryCount]);
+
+  // Manipulador de erro para o elemento img real
   const handleError = () => {
-    console.error(`Erro ao carregar imagem: ${currentSrc}`);
-    setError(true);
-    setCurrentSrc("/placeholder-image.png");
+    if (retryCount < maxRetries && !error) {
+      setRetryCount(prev => prev + 1);
+    } else if (!error) {
+      console.error(`ImageRenderer: Erro final ao carregar imagem: ${currentSrc}`);
+      setError(true);
+      setCurrentSrc("/placeholder.svg");
+    }
   };
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full overflow-hidden">
+      {/* Imagem principal */}
       <img 
         src={currentSrc}
         alt={alt || "Imagem"}
         className={className}
+        onLoad={() => {
+          console.log(`ImageRenderer: Imagem carregada com sucesso: ${currentSrc}`);
+          setLoaded(true);
+          setError(false);
+        }}
         onError={handleError}
+        style={{ display: loaded ? 'block' : 'none' }}
       />
+      
+      {/* Placeholder enquanto carrega */}
+      {!loaded && !error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-50">
+          <div className="animate-pulse bg-gray-200 w-full h-full"></div>
+        </div>
+      )}
+      
+      {/* Mensagem de erro */}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-80 text-gray-500 text-xs p-2 text-center">
-          Não foi possível carregar a imagem
+          <div>
+            Não foi possível carregar a imagem
+            <button 
+              className="block mx-auto mt-2 px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded"
+              onClick={() => {
+                setError(false);
+                setLoaded(false);
+                setRetryCount(0);
+              }}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// Componente de diagnóstico de imagens
+const ImageDiagnosticTool = ({ post }: { post: Post }) => {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  
+  const runDiagnostic = async () => {
+    if (!post.images || post.images.length === 0) {
+      toast({
+        title: "Sem imagens",
+        description: "Este post não contém imagens para diagnosticar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const diagnosticResult = await testImageAccess(post.images[0]);
+      setResult(diagnosticResult);
+      console.log('Resultado do diagnóstico:', diagnosticResult);
+    } catch (error) {
+      console.error('Erro ao executar diagnóstico:', error);
+      setResult({ success: false, error: 'Erro ao executar diagnóstico' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg mt-2">
+      <div className="flex justify-between items-center mb-2">
+        <h4 className="text-sm font-medium">Ferramenta de Diagnóstico</h4>
+        <Button 
+          size="sm" 
+          variant="outline"
+          onClick={runDiagnostic}
+          disabled={loading}
+        >
+          {loading ? 'Analisando...' : 'Verificar Imagem'}
+        </Button>
+      </div>
+      
+      {result && (
+        <div className="text-xs">
+          <p className={result.success ? 'text-green-600' : 'text-red-600'}>
+            Status: {result.success ? 'Acessível' : 'Inacessível'}
+          </p>
+          {result.testedUrl && (
+            <p className="truncate">URL: {result.testedUrl}</p>
+          )}
+          {result.status && (
+            <p>Status HTTP: {result.status}</p>
+          )}
+          {result.error && (
+            <p className="text-red-600">Erro: {result.error}</p>
+          )}
         </div>
       )}
     </div>
@@ -183,31 +394,30 @@ const normalizePath = (path: string): string => {
   }
   
   // Garantir que o caminho comece com /
-  let normalizedPath = path;
-  if (!normalizedPath.startsWith('/')) {
-    normalizedPath = `/${normalizedPath}`;
+  if (!path.startsWith('/')) {
+    path = `/${path}`;
   }
   
-  // Não precisamos alterar o caminho, apenas retorná-lo como está
-  // O componente ImageRenderer vai lidar com a conversão para URL completa
+  // Para desenvolvimento local, adicionar o host do backend
+  if (window.location.hostname === 'localhost') {
+    return `http://localhost:3000${path}`;
+  }
   
-  console.log(`Caminho normalizado: ${path} -> ${normalizedPath}`);
-  return normalizedPath;
+  return path;
 };
 
+// Função de busca de posts
 const fetchPosts = async () => {
   try {
     const data = await api.get('/timeline');
     
     if (Array.isArray(data)) {
       const userId = localStorage.getItem('userId');
-      console.log("ID do usuário atual:", userId);
       
       const formattedPosts = data.map(post => {
         console.log(`Post ${post._id}:`, {
           text: post.text ? post.text.substring(0, 30) : "Sem texto",
           hasAttachments: !!post.attachments && post.attachments.length > 0,
-          hasImages: !!post.images && post.images.length > 0,
           attachments: post.attachments,
           images: post.images
         });
@@ -234,37 +444,17 @@ const fetchPosts = async () => {
             like.toString() === userId || 
             like === userId
           ) || false,
-          images: [] // Inicializar array vazio
+          images: []
         };
         
-        // Processamento de attachments e images
-        // Primeiro, verificar campo images
+        // Processar imagens/anexos - simplificado para usar apenas attachments
         if (post.attachments && post.attachments.length > 0) {
-          formattedPost.images = post.images
-            .filter(img => img) // Filtrar valores vazios
-            .map(img => typeof img === 'string' ? normalizePath(img) : 
-                       (img.type ? normalizePath(img.type) : ''))
-            .filter(Boolean);
-        }
-        
-        // Se images estiver vazio, tentar attachments
-        if ((!formattedPost.images || formattedPost.images.length === 0) && post.attachments && post.attachments.length > 0) {
           formattedPost.images = post.attachments
             .filter(attachment => attachment) // Filtrar valores vazios
-            .map(attachment => {
-              if (typeof attachment === 'string') {
-                return attachment.startsWith('/') ? attachment : `/${attachment}`;
-              } else if (attachment.type) {
-                return attachment.type.startsWith('/') ? attachment.type : `/${attachment.type}`;
-              }
-              return '';
-            })
-            .filter(Boolean);
+            .map(attachment => normalizePath(attachment));
         }
         
         console.log(`Post ${post._id} - imagens processadas:`, formattedPost.images);
-        
-        
         return formattedPost;
       });
       
@@ -279,6 +469,7 @@ const fetchPosts = async () => {
   }
 };
 
+// Função para criar um novo post
 const createNewPostApi = async (
   text: string, 
   files: File[], 
@@ -326,14 +517,9 @@ const createNewPostApi = async (
     
     // Processar imagens/anexos
     if (data.attachments && data.attachments.length > 0) {
-      formattedPost.images = data.attachments.map(att => {
-        if (typeof att === 'string') {
-          return normalizePath(att);
-        } else if (att.type) {
-          return normalizePath(att.type);
-        }
-        return '';
-      }).filter(Boolean);
+      formattedPost.images = data.attachments
+        .filter(att => att)
+        .map(att => normalizePath(att));
     }
     
     if (data.eventData) {
@@ -376,29 +562,6 @@ const addComment = async (postId: string, text: string) => {
       content: comment.text,
       timestamp: formatTimestamp(comment.createdAt)
     }));
-
-    try {
-      const updatedComments = await addComment(postId, commentText);
-      setPosts(prevPosts => prevPosts.map(post => {
-        if (post.id === postId) {
-          return { ...post, comments: updatedComments };
-        }
-        return post;
-      }));
-    } catch (error) {
-      setPosts(prevPosts => prevPosts.map(post => {
-        if (post.id === postId) {
-          return { ...post, comments: post.comments.filter(c => c.id !== tempId) };
-        }
-        return post;
-      }));
-
-      toast({ 
-        title: "Erro", 
-        description: "Não foi possível adicionar o comentário.",
-        variant: "destructive" 
-      });
-    }
     
     return formattedComments;
   } catch (error) {
@@ -424,10 +587,65 @@ const Timeline = () => {
   const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDiagnosticTools, setShowDiagnosticTools] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+
+  const diagnosticAllImages = async () => {
+    if (posts.length === 0) {
+      toast({
+        title: "Sem posts para diagnóstico",
+        description: "Não há posts disponíveis para testar imagens.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const postsWithImages = posts.filter(post => post.images && post.images.length > 0);
+    
+    if (postsWithImages.length === 0) {
+      toast({
+        title: "Sem imagens para diagnóstico",
+        description: "Existem posts, mas nenhum contém imagens.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    toast({
+      title: "Iniciando diagnóstico completo",
+      description: `Testando ${postsWithImages.length} posts com imagens...`
+    });
+    
+    // Testar a primeira imagem de cada post
+    const results = await Promise.all(
+      postsWithImages.map(post => testImageAccess(post.images[0]))
+    );
+    
+    const successCount = results.filter(r => r.success).length;
+    
+    console.log('Resultados completos do diagnóstico:', results);
+    
+    toast({
+      title: "Diagnóstico completo",
+      description: `${successCount} de ${results.length} imagens estão acessíveis.`,
+      variant: successCount === results.length ? "default" : "destructive"
+    });
+    
+    // Se houver falhas, mostrar detalhes
+    if (successCount < results.length) {
+      const failures = results.filter(r => !r.success);
+      failures.forEach((failure, index) => {
+        toast({
+          title: `Falha #${index + 1}`,
+          description: failure.error || 'Erro desconhecido',
+          variant: "destructive"
+        });
+      });
+    }
+  };
 
   useEffect(() => {
     const loadPosts = async () => {
@@ -442,7 +660,6 @@ const Timeline = () => {
 
       try {
         const fetchedPosts = await fetchPosts();
-		// Adicione este bloco de logs aqui
         fetchedPosts.forEach(post => {
           console.log('Post com imagens:', {
             postId: post.id,
@@ -472,6 +689,41 @@ const Timeline = () => {
 
     loadPosts();
   }, [token, navigate]);
+  
+  useEffect(() => {
+  // Função para pré-carregar todas as imagens dos posts
+  const preloadAllImages = () => {
+    if (!posts || posts.length === 0) return;
+    
+    const allImagePaths = posts
+      .filter(post => post.images && post.images.length > 0)
+      .flatMap(post => post.images);
+    
+    if (allImagePaths.length === 0) return;
+    
+    console.log(`Pré-carregando ${allImagePaths.length} imagens...`);
+    
+    allImagePaths.forEach((path, index) => {
+      if (!path) return;
+      
+      // Criar um elemento de imagem para pré-carregar
+      setTimeout(() => {
+        const img = new Image();
+        const fullSrc = path.startsWith('http') 
+          ? path 
+          : `http://localhost:3000${path.startsWith('/') ? '' : '/'}${path}`;
+        
+        img.onload = () => console.log(`Pré-carregamento concluído: ${fullSrc}`);
+        img.onerror = () => console.error(`Erro no pré-carregamento: ${fullSrc}`);
+        img.src = fullSrc;
+      }, index * 50); // Escalonar o carregamento para não sobrecarregar o navegador
+    });
+  };
+  
+  if (!loading && posts.length > 0) {
+    preloadAllImages();
+  }
+}, [posts, loading]);
 
   const createNewPost = async () => {
     if (!token) {
@@ -709,228 +961,250 @@ const Timeline = () => {
             <p className="text-muted-foreground">Compartilhe e acompanhe eventos da empresa</p>
           </div>
           
-          <Dialog open={newPostDialog} onOpenChange={setNewPostDialog}>
-            <DialogTrigger asChild>
-              <Button className="bg-[#e60909] hover:bg-[#e60909]/90 text-white">
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Publicação
+          <div className="flex space-x-2">
+            <Button 
+              variant="outline"
+              className="flex items-center"
+              onClick={() => setShowDiagnosticTools(!showDiagnosticTools)}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              {showDiagnosticTools ? "Ocultar Ferramentas" : "Ferramentas de Diagnóstico"}
+            </Button>
+            
+            {showDiagnosticTools && (
+              <Button 
+                variant="outline"
+                className="flex items-center"
+                onClick={diagnosticAllImages}
+              >
+                <FileSearch className="mr-2 h-4 w-4" />
+                Verificar Todas as Imagens
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Criar Nova Publicação</DialogTitle>
-                <DialogDescription>
-                  Compartilhe novidades, eventos ou atualizações com a equipe.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="flex items-start space-x-3">
-                  <Avatar>
-                    <AvatarFallback className="bg-[#e60909] text-white">
-                      VC
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium">Você</p>
-                    <Textarea 
-                      placeholder="O que você deseja compartilhar?" 
-                      className="mt-2 focus-visible:ring-[#e60909] resize-none"
-                      rows={4}
-                      value={newPostContent}
-                      onChange={(e) => setNewPostContent(e.target.value)}
-                    />
+            )}
+            
+            <Dialog open={newPostDialog} onOpenChange={setNewPostDialog}>
+              <DialogTrigger asChild>
+                <Button className="bg-[#e60909] hover:bg-[#e60909]/90 text-white">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Publicação
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Criar Nova Publicação</DialogTitle>
+                  <DialogDescription>
+                    Compartilhe novidades, eventos ou atualizações com a equipe.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-start space-x-3">
+                    <Avatar>
+                      <AvatarFallback className="bg-[#e60909] text-white">
+                        VC
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-medium">Você</p>
+                      <Textarea 
+                        placeholder="O que você deseja compartilhar?" 
+                        className="mt-2 focus-visible:ring-[#e60909] resize-none"
+                        rows={4}
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {previewImages.length > 0 && (
-                  <div className={cn(
-                    "grid gap-2 mt-4", 
-                    previewImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
-                  )}>
-                    {previewImages.map((img, idx) => (
-                      <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                        <img 
-                          src={img} 
-                          alt={`Imagem ${idx + 1}`} 
-                          className="object-cover w-full h-full"
-                        />
-                        <Button 
-                          variant="destructive" 
-                          size="icon" 
-                          className="absolute top-1 right-1 h-6 w-6 rounded-full"
-                          onClick={() => removeImage(idx)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {previewVideo && (
-                  <div className="mt-4 rounded-lg overflow-hidden relative">
-                    <video controls className="w-full">
-                      <source src={previewVideo} type="video/mp4" />
-                      Seu navegador não suporta a reprodução de vídeos.
-                    </video>
-                    <Button 
-                      variant="destructive" 
-                      size="icon" 
-                      className="absolute top-1 right-1 h-6 w-6 rounded-full"
-                      onClick={removeVideo}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-
-                {showEventForm && (
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-[#e60909] flex items-center gap-2">
-                        <Calendar className="h-4 w-4" /> 
-                        Detalhes do Evento
-                      </h3>
+                  {previewImages.length > 0 && (
+                    <div className={cn(
+                      "grid gap-2 mt-4", 
+                      previewImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                    )}>
+                      {previewImages.map((img, idx) => (
+                        <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+                          <img 
+                            src={img} 
+                            alt={`Imagem ${idx + 1}`} 
+                            className="object-cover w-full h-full"
+                          />
+                          <Button 
+                            variant="destructive" 
+                            size="icon" 
+                            className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                            onClick={() => removeImage(idx)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+ 
+                  {previewVideo && (
+                    <div className="mt-4 rounded-lg overflow-hidden relative">
+                      <video controls className="w-full">
+                        <source src={previewVideo} type="video/mp4" />
+                        Seu navegador não suporta a reprodução de vídeos.
+                      </video>
                       <Button 
-                        variant="ghost" 
+                        variant="destructive" 
                         size="icon" 
-                        className="h-6 w-6" 
-                        onClick={toggleEventForm}
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                        onClick={removeVideo}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3 w-3" />
                       </Button>
                     </div>
-                    <div className="space-y-3">
-                      <div className="grid w-full items-center gap-1.5">
-                        <Label htmlFor="event-title">Título do evento</Label>
-                        <Input
-                          id="event-title"
-                          placeholder="Ex: Reunião de Equipe"
-                          value={eventTitle}
-                          onChange={(e) => setEventTitle(e.target.value)}
-                        />
+                  )}
+ 
+                  {showEventForm && (
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-[#e60909] flex items-center gap-2">
+                          <Calendar className="h-4 w-4" /> 
+                          Detalhes do Evento
+                        </h3>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={toggleEventForm}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <div className="grid w-full items-center gap-1.5">
-                        <Label htmlFor="event-location">Local</Label>
-                        <Input
-                          id="event-location"
-                          placeholder="Ex: Sala de Reuniões, Loja Centro"
-                          value={eventLocation}
-                          onChange={(e) => setEventLocation(e.target.value)}
-                        />
-                      </div>
-                      <div className="grid w-full items-center gap-1.5">
-                        <Label>Data</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full justify-start text-left font-normal",
-                                !eventDate && "text-muted-foreground"
-                              )}
-                            >
-                              <Calendar className="mr-2 h-4 w-4" />
-                              {eventDate ? (
-                                format(eventDate, "PPP", { locale: ptBR })
-                              ) : (
-                                <span>Selecione uma data</span>
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <CalendarComponent
-                              mode="single"
-                              selected={eventDate}
-                              onSelect={setEventDate}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
+                      <div className="space-y-3">
+                        <div className="grid w-full items-center gap-1.5">
+                          <Label htmlFor="event-title">Título do evento</Label>
+                          <Input
+                            id="event-title"
+                            placeholder="Ex: Reunião de Equipe"
+                            value={eventTitle}
+                            onChange={(e) => setEventTitle(e.target.value)}
+                          />
+                        </div>
+                        <div className="grid w-full items-center gap-1.5">
+                          <Label htmlFor="event-location">Local</Label>
+                          <Input
+                            id="event-location"
+                            placeholder="Ex: Sala de Reuniões, Loja Centro"
+                            value={eventLocation}
+                            onChange={(e) => setEventLocation(e.target.value)}
+                          />
+                        </div>
+                        <div className="grid w-full items-center gap-1.5">
+                          <Label>Data</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !eventDate && "text-muted-foreground"
+                                )}
+                              >
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {eventDate ? (
+                                  format(eventDate, "PPP", { locale: ptBR })
+                                ) : (
+                                  <span>Selecione uma data</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarComponent
+                                mode="single"
+                                selected={eventDate}
+                                onSelect={setEventDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="flex gap-2">
-                  <input 
-                    type="file" 
-                    ref={imageInputRef}
-                    accept="image/*" 
-                    multiple 
-                    className="hidden" 
-                    onChange={handleImageSelect}
-                    disabled={!!selectedVideo || previewImages.length >= 4}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => imageInputRef.current?.click()}
-                    disabled={!!selectedVideo || previewImages.length >= 4}
-                  >
-                    <ImageIcon className="mr-2 h-4 w-4" />
-                    {previewImages.length > 0 ? 
-                      `Fotos (${previewImages.length}/4)` : 
-                      "Adicionar Fotos"
-                    }
-                  </Button>
-                  <input 
-                    type="file" 
-                    ref={videoInputRef}
-                    accept="video/*" 
-                    className="hidden" 
-                    onChange={handleVideoSelect}
-                    disabled={previewImages.length > 0}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => videoInputRef.current?.click()}
-                    disabled={previewImages.length > 0 || !!selectedVideo}
-                  >
-                    <Film className="mr-2 h-4 w-4" />
-                    {selectedVideo ? "Vídeo Selecionado" : "Adicionar Vídeo"}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className={cn(
-                      "flex-1",
-                      showEventForm && "bg-gray-100 dark:bg-gray-700"
-                    )}
-                    onClick={toggleEventForm}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {showEventForm ? "Cancelar Evento" : "Criar Evento"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <input 
+                      type="file" 
+                      ref={imageInputRef}
+                      accept="image/*" 
+                      multiple 
+                      className="hidden" 
+                      onChange={handleImageSelect}
+                      disabled={!!selectedVideo || previewImages.length >= 4}
+                    />
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={!!selectedVideo || previewImages.length >= 4}
+                    >
+                      <ImageIcon className="mr-2 h-4 w-4" />
+                      {previewImages.length > 0 ? 
+                        `Fotos (${previewImages.length}/4)` : 
+                        "Adicionar Fotos"
+                      }
+                    </Button>
+                    <input 
+                      type="file" 
+                      ref={videoInputRef}
+                      accept="video/*" 
+                      className="hidden" 
+                      onChange={handleVideoSelect}
+                      disabled={previewImages.length > 0}
+                    />
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => videoInputRef.current?.click()}
+                      disabled={previewImages.length > 0 || !!selectedVideo}
+                    >
+                      <Film className="mr-2 h-4 w-4" />
+                      {selectedVideo ? "Vídeo Selecionado" : "Adicionar Vídeo"}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className={cn(
+                        "flex-1",
+                        showEventForm && "bg-gray-100 dark:bg-gray-700"
+                      )}
+                      onClick={toggleEventForm}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {showEventForm ? "Cancelar Evento" : "Criar Evento"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setNewPostContent("");
-                    setSelectedImages([]);
-                    setPreviewImages([]);
-                    setSelectedVideo(null);
-                    setPreviewVideo(null);
-                    setShowEventForm(false);
-                    setEventTitle("");
-                    setEventLocation("");
-                    setEventDate(undefined);
-                    setNewPostDialog(false);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  className="bg-[#e60909] hover:bg-[#e60909]/90 text-white"
-                  onClick={createNewPost}
-                >
-                  Publicar
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setNewPostContent("");
+                      setSelectedImages([]);
+                      setPreviewImages([]);
+                      setSelectedVideo(null);
+                      setPreviewVideo(null);
+                      setShowEventForm(false);
+                      setEventTitle("");
+                      setEventLocation("");
+                      setEventDate(undefined);
+                      setNewPostDialog(false);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    className="bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                    onClick={createNewPost}
+                  >
+                    Publicar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
         
         <Tabs defaultValue="todos" className="w-full" onValueChange={setActiveTab}>
@@ -982,6 +1256,23 @@ const Timeline = () => {
                         <DropdownMenuContent>
                           <DropdownMenuItem>Salvar</DropdownMenuItem>
                           <DropdownMenuItem>Reportar</DropdownMenuItem>
+                          {showDiagnosticTools && post.images && post.images.length > 0 && (
+                            <DropdownMenuItem onClick={(e) => {
+                              e.preventDefault();
+                              testImageAccess(post.images[0]).then(result => {
+                                console.log('Resultado do diagnóstico:', result);
+                                toast({
+                                  title: result.success ? 'Imagem acessível' : 'Erro no acesso',
+                                  description: result.success 
+                                    ? `Status: ${result.status}, URL: ${result.testedUrl}` 
+                                    : `Erro: ${result.error || 'Desconhecido'}`,
+                                  variant: result.success ? 'default' : 'destructive'
+                                });
+                              });
+                            }}>
+                              Diagnosticar Imagem
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -1012,6 +1303,28 @@ const Timeline = () => {
                               alt={`Imagem ${idx + 1}`} 
                               className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
                             />
+                            {showDiagnosticTools && (
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  testImageAccess(img).then(result => {
+                                    console.log('Resultado do diagnóstico:', result);
+                                    toast({
+                                      title: result.success ? 'Imagem acessível' : 'Erro no acesso',
+                                      description: result.success 
+                                        ? `Status: ${result.status}, URL: ${result.testedUrl}` 
+                                        : `Erro: ${result.error || 'Desconhecido'}`,
+                                      variant: result.success ? 'default' : 'destructive'
+                                    });
+                                  });
+                                }}
+                              >
+                                Diagnosticar
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1032,6 +1345,10 @@ const Timeline = () => {
                       <div>{post.likes} curtidas</div>
                       <div>{post.comments.length} comentários</div>
                     </div>
+                    
+                    {showDiagnosticTools && post.images && post.images.length > 0 && (
+                      <ImageDiagnosticTool post={post} />
+                    )}
                   </CardContent>
                   <CardFooter className="flex flex-col space-y-4">
                     <div className="flex justify-around w-full border-y py-1">

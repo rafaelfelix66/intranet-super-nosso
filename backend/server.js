@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
-
+const fs = require('fs');
 // Importar modelos
 const { User, File, Message, Chat } = require('./models');
 
@@ -20,10 +20,75 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   }
 });
+const uploadsPath = path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(uploadsPath));
+
+// Debug de arquivos na pasta uploads
+fs.readdir(uploadsPath, (err, files) => {
+  if (err) {
+    console.error('Erro ao ler diretório de uploads:', err);
+  } else {
+    console.log('Arquivos na pasta uploads:', files);
+    
+    // Verificar pasta timeline especificamente
+    const timelinePath = path.join(uploadsPath, 'timeline');
+    if (fs.existsSync(timelinePath)) {
+      fs.readdir(timelinePath, (err, timelineFiles) => {
+        if (err) {
+          console.error('Erro ao ler diretório de timeline:', err);
+        } else {
+          console.log('Arquivos na pasta timeline:', timelineFiles);
+        }
+      });
+    } else {
+      console.error('Pasta uploads/timeline não existe!');
+      // Criar a pasta se não existir
+      fs.mkdirSync(timelinePath, { recursive: true });
+      console.log('Pasta uploads/timeline criada');
+    }
+  }
+});
+
+// Rota de diagnóstico para verificar se um arquivo específico existe
+app.get('/api/check-file', (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) {
+    return res.status(400).json({ error: 'Caminho do arquivo não fornecido' });
+  }
+  
+  const fullPath = path.join(__dirname, filePath.startsWith('/') ? filePath.substring(1) : filePath);
+  
+  fs.access(fullPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      return res.status(404).json({ 
+        error: 'Arquivo não encontrado ou não acessível',
+        path: fullPath,
+        exists: false,
+        message: err.message
+      });
+    }
+    
+    fs.stat(fullPath, (err, stats) => {
+      if (err) {
+        return res.status(500).json({ error: 'Erro ao obter informações do arquivo', message: err.message });
+      }
+      
+      res.json({
+        exists: true,
+        path: fullPath,
+        size: stats.size,
+        isFile: stats.isFile(),
+        isDirectory: stats.isDirectory(),
+        created: stats.birthtime,
+        modified: stats.mtime
+      });
+    });
+  });
+});
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Criar diretórios de upload necessários
-const fs = require('fs');
+
 
 // Criar diretórios de upload se não existirem
 const createRequiredDirs = () => {
@@ -82,8 +147,22 @@ app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeli
 
 // Adicione logs para depuração
 app.use('/uploads', (req, res, next) => {
-  console.log(`Requisição de arquivo estático: ${req.url}`);
-  next();
+  const reqPath = req.path;
+  const fullPath = path.join(uploadsPath, reqPath);
+  
+  console.log(`[DEBUG] Requisição de arquivo: ${reqPath}`);
+  console.log(`[DEBUG] Caminho completo: ${fullPath}`);
+  
+  fs.access(fullPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error(`[DEBUG] ERRO: Arquivo não acessível: ${fullPath}`);
+      console.error(`[DEBUG] Erro: ${err.message}`);
+      // Não interrompe o fluxo, apenas registra o erro
+    } else {
+      console.log(`[DEBUG] Arquivo encontrado e acessível: ${fullPath}`);
+    }
+    next();
+  });
 });
 // Middleware para logging de requisições
 app.use((req, res, next) => {
