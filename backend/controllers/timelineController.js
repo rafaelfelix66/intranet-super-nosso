@@ -78,12 +78,13 @@ const createPost = async (req, res) => {
       text, 
       user: req.usuario.id, 
       files: req.files ? req.files.length : 0,
-      eventData: !!eventData 
+      eventData: typeof eventData === 'string' ? eventData.substring(0, 50) + '...' : JSON.stringify(eventData).substring(0, 50) + '...' 
     });
     
-    if (!text && !eventData) {
-      console.log('Texto vazio e sem dados de evento, rejeitando post');
-      return res.status(400).json({ mensagem: 'O texto ou dados de evento são obrigatórios' });
+    // Validação - permitir posts vazios se existir eventData ou anexos
+    if (!text && !eventData && (!req.files || req.files.length === 0)) {
+      console.log('Post vazio rejeitado: sem texto, evento ou anexos');
+      return res.status(400).json({ mensagem: 'É necessário incluir texto, dados de evento ou anexos' });
     }
     
     // Verificar como os arquivos são enviados pelo Multer
@@ -109,14 +110,26 @@ const createPost = async (req, res) => {
     
     console.log('Anexos processados:', attachments);
     
-    // Processar dados do evento se forem fornecidos
+    // Processar dados do evento se forem fornecidos - melhor tratamento
     let parsedEventData = null;
     if (eventData) {
       try {
-        parsedEventData = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
-        console.log('Dados do evento processados:', parsedEventData);
+        // Se for string, tenta fazer o parse, senão assume que já é um objeto
+        if (typeof eventData === 'string') {
+          parsedEventData = JSON.parse(eventData);
+          console.log('Dados do evento processados de string JSON:', parsedEventData);
+        } else {
+          parsedEventData = eventData;
+          console.log('Dados do evento já em formato de objeto:', parsedEventData);
+        }
+        
+        // Validar se os campos obrigatórios estão presentes
+        if (!parsedEventData.title || !parsedEventData.date || !parsedEventData.location) {
+          console.warn('Dados de evento incompletos:', parsedEventData);
+        }
       } catch (error) {
-        console.error('Erro ao analisar dados do evento:', error);
+        console.error('Erro ao analisar dados do evento:', error, 'Valor recebido:', eventData);
+        return res.status(400).json({ mensagem: 'Formato inválido para dados do evento', erro: error.message });
       }
     }
     
@@ -136,7 +149,8 @@ const createPost = async (req, res) => {
       id: post._id,
       text: post.text ? post.text.substring(0, 30) : '',
       attachmentsLength: post.attachments ? post.attachments.length : 0,
-      imagesLength: post.images ? post.images.length : 0
+      imagesLength: post.images ? post.images.length : 0,
+      eventData: post.eventData ? 'presente' : 'ausente'
     });
     
     // Carregar informações do usuário para a resposta
@@ -210,5 +224,56 @@ const likePost = async (req, res) => {
   }
 };
 
-// Exportar funções
-module.exports = { getPosts, createPost, addComment, likePost };
+// Função para excluir uma publicação
+const deletePost = async (req, res) => {
+  try {
+    console.log('Tentando excluir post. ID:', req.params.id, 'Usuário:', req.usuario.id);
+    const post = await Post.findById(req.params.id);
+    
+    if (!post) {
+      console.log('Post não encontrado:', req.params.id);
+      return res.status(404).json({ msg: 'Publicação não encontrada' });
+    }
+    
+    // Verificar se o usuário é o dono do post
+    if (post.user.toString() !== req.usuario.id) {
+      console.log('Usuário não autorizado a excluir este post');
+      return res.status(401).json({ msg: 'Usuário não autorizado' });
+    }
+    
+    // Remover arquivos anexados ao post, se houver
+    if (post.attachments && post.attachments.length > 0) {
+      const fs = require('fs');
+      const path = require('path');
+      
+      post.attachments.forEach(attachment => {
+        try {
+          if (typeof attachment === 'string') {
+            const filePath = path.join(__dirname, '..', attachment.replace(/^\//, ''));
+            if (fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+              console.log(`Arquivo removido: ${filePath}`);
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao remover arquivo:', err);
+        }
+      });
+    }
+    
+    // Excluir o post
+    await Post.findByIdAndRemove(req.params.id);
+    console.log('Post excluído com sucesso:', req.params.id);
+    
+    res.json({ msg: 'Publicação removida com sucesso' });
+  } catch (err) {
+    console.error('Erro ao excluir post:', err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Publicação não encontrada' });
+    }
+    res.status(500).send('Erro no servidor');
+  }
+};
+
+// Exportar as funções
+module.exports = { getPosts, createPost, addComment, likePost, deletePost };

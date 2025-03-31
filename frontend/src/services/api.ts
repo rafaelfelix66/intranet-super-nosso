@@ -124,35 +124,47 @@ export const api = {
     }
   },
   
-  delete: async (endpoint: string) => {
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      throw new Error('Usuário não autenticado');
-    }
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Erro ${response.status}:`, errorText);
-        throw new Error(`Erro na requisição: ${response.status}`);
-      }
-      
-      return response.json();
-    } catch (error) {
-      console.error('Erro na requisição DELETE:', error);
-      throw error;
-    }
-  },
+delete: async (endpoint: string) => {
+  const token = localStorage.getItem('token');
   
-  upload: async (endpoint: string, formData: FormData) => {
+  if (!token) {
+    throw new Error('Usuário não autenticado');
+  }
+  
+  try {
+    console.log(`Enviando DELETE para ${API_BASE_URL}${endpoint}`);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Erro ${response.status}:`, errorText);
+      throw new Error(`Erro na requisição: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Erro na requisição DELETE:', error);
+    throw error;
+  }
+},
+  
+  deletePost: async (postId: string) => {
+  try {
+    return api.delete(`/timeline/${postId}`);
+  } catch (error) {
+    console.error('Erro ao excluir post:', error);
+    throw new Error('Não foi possível excluir a publicação');
+  }
+},
+  
+upload: async (endpoint: string, formData: FormData) => {
   const token = localStorage.getItem('token');
   
   if (!token) {
@@ -162,8 +174,16 @@ export const api = {
   try {
     console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
     
-    // Log mais detalhado do FormData
-    console.log('FormData contém:', [...formData.entries()].map(e => `${e[0]}: ${e[1] instanceof File ? `File (${e[1].name}, ${e[1].size} bytes)` : e[1]}`));
+    // Log detalhado do FormData
+    const formDataContent = {};
+    for (const [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        formDataContent[key] = `File: ${value.name} (${value.type}, ${value.size} bytes)`;
+      } else {
+        formDataContent[key] = value;
+      }
+    }
+    console.log('FormData contém:', formDataContent);
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',

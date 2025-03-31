@@ -753,65 +753,81 @@ const Timeline = () => {
 }, [posts, loading]);
 
   const createNewPost = async () => {
-    if (!token) {
-      console.error('Token não encontrado');
-      navigate('/login');
-      return;
-    }
+  if (!token) {
+    console.error('Token não encontrado');
+    navigate('/login');
+    return;
+  }
 
-    if (!newPostContent.trim() && !showEventForm) {
-      toast({
-        title: "Conteúdo vazio",
-        description: "Adicione um texto ou um evento para publicar.",
-        variant: "destructive"
-      });
-      return;
-    }
+  // Verificar se há conteúdo para postar
+  if (!newPostContent.trim() && !showEventForm && selectedImages.length === 0 && !selectedVideo) {
+    toast({
+      title: "Conteúdo vazio",
+      description: "Adicione um texto, mídia ou um evento para publicar.",
+      variant: "destructive"
+    });
+    return;
+  }
 
-    if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
-      toast({
-        title: "Detalhes do evento incompletos",
-        description: "Preencha todos os campos do evento.",
-        variant: "destructive"
-      });
-      return;
-    }
+  // Verificar dados do evento
+  if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
+    toast({
+      title: "Detalhes do evento incompletos",
+      description: "Preencha todos os campos do evento.",
+      variant: "destructive"
+    });
+    return;
+  }
 
-    try {
-      const files = selectedVideo ? [selectedVideo] : selectedImages;
-      const eventData = showEventForm && eventDate ? {
+  try {
+    const files = selectedVideo ? [selectedVideo] : selectedImages;
+    
+    // Formatar os dados do evento corretamente
+    let eventData = undefined;
+    if (showEventForm && eventDate) {
+      eventData = {
         title: eventTitle,
         date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
         location: eventLocation
-      } : undefined;
-
-      const newPost = await createNewPostApi(newPostContent, files, eventData);
-      setPosts(prevPosts => [newPost, ...prevPosts]);
-
-      toast({ 
-        title: "Publicação criada", 
-        description: "Sua publicação foi compartilhada com sucesso!" 
-      });
-
-      setNewPostContent("");
-      setSelectedImages([]);
-      setPreviewImages([]);
-      setSelectedVideo(null);
-      setPreviewVideo(null);
-      setShowEventForm(false);
-      setEventTitle("");
-      setEventLocation("");
-      setEventDate(undefined);
-      setNewPostDialog(false);
-    } catch (error) {
-      console.error('Erro ao enviar post:', error);
-      toast({ 
-        title: "Erro", 
-        description: error instanceof Error ? error.message : "Não foi possível criar a publicação.",
-        variant: "destructive" 
-      });
+      };
+      console.log("Dados do evento formatados:", eventData);
     }
-  };
+
+    // Adicionar log para depuração
+    console.log("Enviando post com:", {
+      texto: newPostContent,
+      arquivos: files.length,
+      evento: eventData
+    });
+
+    const newPost = await createNewPostApi(newPostContent, files, eventData);
+    setPosts(prevPosts => [newPost, ...prevPosts]);
+
+    toast({ 
+      title: "Publicação criada", 
+      description: "Sua publicação foi compartilhada com sucesso!" 
+    });
+
+    // Limpar o formulário
+    setNewPostContent("");
+    setSelectedImages([]);
+    setPreviewImages([]);
+    setSelectedVideo(null);
+    setPreviewVideo(null);
+    setShowEventForm(false);
+    setEventTitle("");
+    setEventLocation("");
+    setEventDate(undefined);
+    setNewPostDialog(false);
+  } catch (error) {
+    console.error('Erro ao enviar post:', error);
+    toast({ 
+      title: "Erro", 
+      description: error instanceof Error ? error.message : "Não foi possível criar a publicação.",
+      variant: "destructive" 
+    });
+  }
+};
 
   const handleLike = async (postId: string) => {
     if (!token) {
@@ -978,6 +994,67 @@ const Timeline = () => {
       : activeTab === "videos"
         ? posts.filter(post => post.video)
         : posts.filter(post => post.event);
+
+  const deletePost = async (postId: string) => {
+  if (!token) {
+    console.error('Token não encontrado');
+    navigate('/login');
+    return;
+  }
+
+  try {
+    // Mostrar toast de confirmação
+    toast({
+      title: "Confirmação",
+      description: "Tem certeza que deseja excluir esta publicação?",
+      action: (
+        <div className="flex gap-2">
+          <Button 
+            variant="destructive" 
+            size="sm"
+            onClick={async () => {
+              try {
+                await api.deletePost(postId);
+                setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+                toast({ 
+                  title: "Sucesso", 
+                  description: "Publicação excluída com sucesso." 
+                });
+              } catch (error) {
+                toast({
+                  title: "Erro",
+                  description: "Não foi possível excluir a publicação.",
+                  variant: "destructive"
+                });
+              }
+            }}
+          >
+            Excluir
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              toast({
+                title: "Cancelado",
+                description: "A exclusão foi cancelada."
+              });
+            }}
+          >
+            Cancelar
+          </Button>
+        </div>
+      ),
+    });
+  } catch (error) {
+    console.error('Erro ao excluir post:', error);
+    toast({ 
+      title: "Erro", 
+      description: "Não foi possível excluir a publicação.",
+      variant: "destructive" 
+    });
+  }
+};
 
   return (
     <Layout>
@@ -1284,26 +1361,35 @@ const Timeline = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem>Salvar</DropdownMenuItem>
-                          <DropdownMenuItem>Reportar</DropdownMenuItem>
-                          {showDiagnosticTools && post.images && post.images.length > 0 && (
-                            <DropdownMenuItem onClick={(e) => {
-                              e.preventDefault();
-                              testImageAccess(post.images[0]).then(result => {
-                                console.log('Resultado do diagnóstico:', result);
-                                toast({
-                                  title: result.success ? 'Imagem acessível' : 'Erro no acesso',
-                                  description: result.success 
-                                    ? `Status: ${result.status}, URL: ${result.testedUrl}` 
-                                    : `Erro: ${result.error || 'Desconhecido'}`,
-                                  variant: result.success ? 'default' : 'destructive'
-                                });
-                              });
-                            }}>
-                              Diagnosticar Imagem
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
+						  <DropdownMenuItem>Salvar</DropdownMenuItem>
+						  <DropdownMenuItem>Reportar</DropdownMenuItem>
+						  <DropdownMenuItem 
+							className="text-red-500"
+							onClick={(e) => {
+							  e.preventDefault();
+							  deletePost(post.id);
+							}}
+						  >
+							Excluir
+						  </DropdownMenuItem>
+						  {showDiagnosticTools && post.images && post.images.length > 0 && (
+							<DropdownMenuItem onClick={(e) => {
+							  e.preventDefault();
+							  testImageAccess(post.images[0]).then(result => {
+								console.log('Resultado do diagnóstico:', result);
+								toast({
+								  title: result.success ? 'Imagem acessível' : 'Erro no acesso',
+								  description: result.success 
+									? `Status: ${result.status}, URL: ${result.testedUrl}` 
+									: `Erro: ${result.error || 'Desconhecido'}`,
+								  variant: result.success ? 'default' : 'destructive'
+								});
+							  });
+							}}>
+							  Diagnosticar Imagem
+							</DropdownMenuItem>
+						  )}
+						</DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                   </CardHeader>

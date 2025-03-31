@@ -70,6 +70,11 @@ router.post('/:id/comment', auth, timelineController.addComment);
 router.put('/:id/like', auth, timelineController.likePost);
 console.log('Rotas da timeline registradas com sucesso');
 
+// @route   DELETE api/timeline/:id
+// @desc    Excluir uma publicação
+// @access  Private
+router.delete('/:id', auth, timelineController.deletePost);
+console.log('Rota de exclusão de post registrada com sucesso');
 // @route   GET api/timeline/check-image/:filename
 // @desc    Verificar se uma imagem específica existe e pode ser acessada
 // @access  Public
