@@ -1,50 +1,75 @@
-
+// frontend/src/components/home/CarouselBanner.tsx
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { api } from "@/services/api";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Slide {
-  id: number;
-  imageUrl: string;
+  _id: string;
   title: string;
   description: string;
+  imageUrl: string;
   link?: string;
 }
 
-const slides: Slide[] = [
+// Slides de fallback em caso de erro
+const fallbackSlides: Slide[] = [
   {
-    id: 1,
-    imageUrl: "https://images.unsplash.com/photo-1605810230434-7631ac76ec81",
+    _id: "fallback1",
     title: "Bem-vindo à Intranet Super Nosso",
     description: "Seu portal de comunicação e colaboração",
+    imageUrl: "/placeholder.svg",
     link: "#"
-  },
-  {
-    id: 2,
-    imageUrl: "https://images.unsplash.com/photo-1519389950473-47ba0277781c",
-    title: "Compartilhe Conhecimento",
-    description: "Conecte-se com a equipe e compartilhe informações importantes",
-    link: "/timeline"
-  },
-  {
-    id: 3,
-    imageUrl: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b",
-    title: "Organize seus Arquivos",
-    description: "Acesse e gerencie documentos de forma simples",
-    link: "/arquivos"
   }
 ];
 
 export function CarouselBanner() {
+  const [slides, setSlides] = useState<Slide[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const { toast } = useToast();
+  
+  // Função para buscar os banners
+  const fetchBanners = async () => {
+    setIsLoading(true);
+    setHasError(false);
+    
+    try {
+      const response = await api.get('/banners');
+      if (response && Array.isArray(response) && response.length > 0) {
+        setSlides(response);
+      } else {
+        // Se não houver banners, usar os fallback
+        setSlides(fallbackSlides);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar banners:', error);
+      setHasError(true);
+      setSlides(fallbackSlides);
+      toast({
+        title: "Erro ao carregar banners",
+        description: "Utilizando banners padrão. Tente novamente mais tarde.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchBanners();
+  }, []);
   
   const nextSlide = () => {
+    if (slides.length <= 1) return;
     setCurrentSlide((prev) => (prev + 1) % slides.length);
   };
   
   const prevSlide = () => {
+    if (slides.length <= 1) return;
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
   
@@ -52,27 +77,52 @@ export function CarouselBanner() {
     setCurrentSlide(index);
   };
   
+  // Efeito para mostrar que a imagem foi carregada
   useEffect(() => {
     const timer = setTimeout(() => {
-      setIsLoading(false);
+      if (slides.length > 0) {
+        setIsLoading(false);
+      }
     }, 500);
     
     return () => clearTimeout(timer);
-  }, []);
+  }, [slides]);
   
+  // Rotação automática
   useEffect(() => {
+    if (slides.length <= 1) return; // Não rotacionar se houver apenas 1 slide
+    
     const interval = setInterval(() => {
       nextSlide();
     }, 5000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [slides.length, currentSlide]);
+  
+  // Se não houver slides, mostrar um placeholder
+  if (slides.length === 0 && !isLoading) {
+    return (
+      <div className="relative w-full h-[300px] sm:h-[400px] overflow-hidden rounded-xl shadow-md bg-gray-100 flex items-center justify-center">
+        <div className="text-center p-4">
+          <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+          <h3 className="text-lg font-medium">Nenhum banner disponível</h3>
+          <p className="text-sm text-gray-500">Adicione banners para personalizar sua página inicial</p>
+          <Button 
+            className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+            onClick={fetchBanners}
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="relative w-full h-[300px] sm:h-[400px] overflow-hidden rounded-xl shadow-md">
       {slides.map((slide, index) => (
         <div 
-          key={slide.id}
+          key={slide._id}
           className={cn(
             "absolute inset-0 w-full h-full transition-all duration-500 ease-in-out",
             index === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0"
@@ -90,7 +140,12 @@ export function CarouselBanner() {
                 "w-full h-full object-cover transition-transform duration-700",
                 index === currentSlide ? "scale-105" : "scale-100"
               )}
-              onLoad={() => setIsLoading(false)}
+              onLoad={() => index === currentSlide && setIsLoading(false)}
+              onError={(e) => {
+                // Usar imagem de fallback em caso de erro
+                const target = e.target as HTMLImageElement;
+                target.src = "/placeholder.svg";
+              }}
             />
             <div className="absolute bottom-0 left-0 right-0 z-20 p-4 sm:p-8 text-white">
               <h3 className="text-xl sm:text-2xl font-bold mb-2 animate-fade-in">{slide.title}</h3>
@@ -109,38 +164,42 @@ export function CarouselBanner() {
         </div>
       ))}
       
-      <Button 
-        variant="outline" 
-        size="icon" 
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/20 text-white rounded-full"
-        onClick={prevSlide}
-      >
-        <ChevronLeft size={20} />
-      </Button>
-      
-      <Button 
-        variant="outline" 
-        size="icon" 
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/20 text-white rounded-full"
-        onClick={nextSlide}
-      >
-        <ChevronRight size={20} />
-      </Button>
-      
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex space-x-2">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            className={cn(
-              "w-2 h-2 rounded-full transition-all",
-              index === currentSlide 
-                ? "bg-white w-6" 
-                : "bg-white/50 hover:bg-white/70"
-            )}
-            onClick={() => goToSlide(index)}
-          />
-        ))}
-      </div>
+      {slides.length > 1 && (
+        <>
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-30 bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/20 text-white rounded-full"
+            onClick={prevSlide}
+          >
+            <ChevronLeft size={20} />
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-30 bg-white/10 backdrop-blur-sm border-white/20 hover:bg-white/20 text-white rounded-full"
+            onClick={nextSlide}
+          >
+            <ChevronRight size={20} />
+          </Button>
+          
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex space-x-2">
+            {slides.map((_, index) => (
+              <button
+                key={index}
+                className={cn(
+                  "w-2 h-2 rounded-full transition-all",
+                  index === currentSlide 
+                    ? "bg-white w-6" 
+                    : "bg-white/50 hover:bg-white/70"
+                )}
+                onClick={() => goToSlide(index)}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

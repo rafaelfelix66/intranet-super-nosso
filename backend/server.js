@@ -87,6 +87,7 @@ app.get('/api/check-file', (req, res) => {
 });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads/banners', express.static(path.join(__dirname, 'uploads/banners')));
 // Criar diretórios de upload necessários
 
 
@@ -97,7 +98,8 @@ const createRequiredDirs = () => {
     path.join(__dirname, 'uploads/chat'),
     path.join(__dirname, 'uploads/files'),
     path.join(__dirname, 'uploads/knowledge'),
-	path.join(__dirname, 'uploads/timeline')
+	path.join(__dirname, 'uploads/timeline'),
+	path.join(__dirname, 'uploads/banners')
   ];
   
   dirs.forEach(dir => {
@@ -201,6 +203,7 @@ app.use('/api/timeline', require('./routes/timeline'));
 app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/files', require('./routes/files'));
+app.use('/api/banners', require('./routes/banners'));
 
 // Configuração específica para pré-voo de upload de arquivos
 app.options('/api/files/upload', cors(corsOptions));

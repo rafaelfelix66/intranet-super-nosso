@@ -10,7 +10,8 @@ import {
   Menu, 
   X, 
   Settings, 
-  LogOut 
+  LogOut ,
+  LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,13 @@ export function Sidebar() {
             active={getActivePath("/base-conhecimento")} 
             isOpen={isOpen}
           />
+		  <SidebarItem 
+			icon={LayoutDashboard} 
+			to="/admin/banners" 
+			label="Gerenciar Banners" 
+			active={getActivePath("/admin/banners")} 
+			isOpen={isOpen}
+		  />
           <SidebarItem 
             icon={Settings} 
             to="/configuracoes" 

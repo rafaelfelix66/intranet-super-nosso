@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ArticlePage from "./pages/ArticlePage";
 import NewArticlePage from "./pages/NewArticlePage";
+import BannerAdmin from "./pages/BannerAdmin";
 
 // Update Tailwind CSS variables to include the new red color
 import { useEffect } from "react";
@@ -72,6 +73,7 @@ const App = () => {
 				<Route path="/base-conhecimento/:id" element={<ArticlePage />} />
 				<Route path="/base-conhecimento/novo" element={<NewArticlePage />} />
                 <Route path="/configuracoes" element={<Settings />} />
+				<Route path="/admin/banners" element={<BannerAdmin />} />
               </Route>
               
               {/* Catch-all route */}

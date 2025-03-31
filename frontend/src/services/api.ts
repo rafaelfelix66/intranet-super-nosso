@@ -18,19 +18,20 @@ export const api = {
   getBaseUrl,
   
   get: async (endpoint: string) => {
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      throw new Error('Usuário não autenticado');
-    }
-    
     try {
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {
+        'Accept': 'application/json'
+      };
+      
+      // Adicionar token se disponível (alguns endpoints podem ser públicos)
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
+        headers
       });
       
       if (!response.ok) {
@@ -86,7 +87,7 @@ export const api = {
     }
   },
   
-  put: async (endpoint: string, data = {}) => {
+  put: async (endpoint: string, data: any = {}, isFormData = false) => {
     const token = localStorage.getItem('token');
     
     if (!token) {
@@ -94,13 +95,20 @@ export const api = {
     }
     
     try {
+      const headers: HeadersInit = {
+        'Authorization': `Bearer ${token}`
+      };
+      
+      if (!isFormData) {
+        headers['Content-Type'] = 'application/json';
+      }
+      
+      const body = isFormData ? data : JSON.stringify(data);
+      
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
+        headers,
+        body
       });
       
       if (!response.ok) {
@@ -145,21 +153,93 @@ export const api = {
   },
   
   upload: async (endpoint: string, formData: FormData) => {
-    const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    throw new Error('Usuário não autenticado');
+  }
+  
+  try {
+    console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
     
-    if (!token) {
-      throw new Error('Usuário não autenticado');
+    // Log mais detalhado do FormData
+    console.log('FormData contém:', [...formData.entries()].map(e => `${e[0]}: ${e[1] instanceof File ? `File (${e[1].name}, ${e[1].size} bytes)` : e[1]}`));
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+        // Não definir Content-Type, deixar o navegador definir com o boundary
+      },
+      body: formData
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Erro ${response.status}:`, errorText);
+      throw new Error(`Erro na requisição: ${response.status}`);
     }
     
-    try {
-      console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
-      console.log('FormData contém arquivos:', formData.getAll('file').length);
-      
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
+    return response.json();
+  } catch (error) {
+    console.error('Erro na requisição de upload:', error);
+    throw error;
+  }
+},
+
+	uploadPut: async (endpoint: string, formData: FormData) => {
+	  const token = localStorage.getItem('token');
+	  
+	  if (!token) {
+		throw new Error('Usuário não autenticado');
+	  }
+	  
+	  try {
+		console.log(`Enviando upload PUT para ${API_BASE_URL}${endpoint}`);
+		console.log('FormData contém arquivos:', formData.getAll('image').length);
+		
+		const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+		  method: 'PUT',  // Mudamos para PUT
+		  headers: {
+			'Authorization': `Bearer ${token}`
+			// Não definimos Content-Type aqui
+		  },
+		  body: formData
+		});
+		
+		if (!response.ok) {
+		  const errorText = await response.text();
+		  console.error(`Erro ${response.status}:`, errorText);
+		  throw new Error(`Erro no upload: ${response.status}`);
+		}
+		
+		return response.json();
+	  } catch (error) {
+		console.error('Erro na requisição de upload:', error);
+		throw error;
+	  }
+	},
+  
+  // Funções específicas para banners
+  banners: {
+    getAll: async () => {
+      return api.get('/banners/all');
+    },
+    
+    getActive: async () => {
+      return api.get('/banners');
+    },
+    
+    create: async (formData: FormData) => {
+      return api.upload('/banners', formData);
+    },
+    
+    update: async (id: string, formData: FormData) => {
+      // Para PUT com FormData usando a função upload modificada
+      const response = await fetch(`${API_BASE_URL}/banners/${id}`, {
+        method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`
-          // Não definimos Content-Type aqui, deixamos o navegador definir com boundary
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: formData
       });
@@ -167,13 +247,22 @@ export const api = {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Erro ${response.status}:`, errorText);
-        throw new Error(`Erro no upload: ${response.status}`);
+        throw new Error(`Erro na atualização do banner: ${response.status}`);
       }
       
       return response.json();
-    } catch (error) {
-      console.error('Erro na requisição de upload:', error);
-      throw error;
+    },
+    
+    delete: async (id: string) => {
+      return api.delete(`/banners/${id}`);
+    },
+    
+    changeOrder: async (id: string, newOrder: number) => {
+      return api.put(`/banners/${id}`, { order: newOrder });
+    },
+    
+    toggleActive: async (id: string, isActive: boolean) => {
+      return api.put(`/banners/${id}`, { active: isActive });
     }
   }
 };

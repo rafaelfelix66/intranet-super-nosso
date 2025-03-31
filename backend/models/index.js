@@ -108,6 +108,41 @@ const FolderSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// Novo schema para o Banner
+const BannerSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  imageUrl: {
+    type: String,
+    required: true
+  },
+  link: {
+    type: String
+  },
+  active: {
+    type: Boolean,
+    default: true
+  },
+  order: {
+    type: Number,
+    default: 0
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
 module.exports = {
   User: mongoose.model('User', UserSchema),
   Post: mongoose.model('Post', PostSchema),
@@ -115,5 +150,6 @@ module.exports = {
   Chat: mongoose.model('Chat', ChatSchema), // Substitui ChatRoom
   Message: mongoose.model('Message', MessageSchema),
   File: mongoose.model('File', FileSchema),
-  Folder: mongoose.model('Folder', FolderSchema)
+  Folder: mongoose.model('Folder', FolderSchema),
+  Banner: mongoose.model('Banner', BannerSchema) // Adicionado o modelo Banner
 };
