@@ -2,6 +2,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
+import { ImageModal } from "@/components/ui/image-modal";
+import { VideoModal } from "@/components/ui/video-modal";
+import { VideoRenderer } from "@/components/ui/video-renderer";
 import { 
   Card, 
   CardContent, 
@@ -184,8 +187,7 @@ const testImageAccess = async (imagePath: string) => {
 };
 
 // Componente melhorado para renderizar imagens com tratamento de erro
-// Componente melhorado para renderizar imagens com tratamento de erro
-const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, className?: string }) => {
+const ImageRenderer = ({ src, alt, className, enableModal = false }: { src: string, alt: string, className?: string, enableModal?: boolean }) => {
   const [error, setError] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [currentSrc, setCurrentSrc] = useState("");
@@ -205,7 +207,7 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
       return;
     }
 
-     // Função para processar o URL da imagem
+    // Função para processar o URL da imagem
     const processImageUrl = () => {
       // Para desenvolvimento local em localhost, tentamos prefixar o host do backend
       if (!src.startsWith('http') && window.location.hostname === 'localhost') {
@@ -276,7 +278,7 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
     }
   };
 
-  return (
+  const imageContent = (
     <div className="relative w-full h-full overflow-hidden">
       {/* Imagem principal */}
       <img 
@@ -319,9 +321,19 @@ const ImageRenderer = ({ src, alt, className }: { src: string, alt: string, clas
       )}
     </div>
   );
+
+  // Se o modal estiver habilitado e não houver erro, envolver com o modal
+  if (enableModal && !error && loaded) {
+    return (
+      <ImageModal src={currentSrc} alt={alt}>
+        {imageContent}
+      </ImageModal>
+    );
+  }
+
+  // Caso contrário, retornar apenas a imagem
+  return imageContent;
 };
-
-
 // Componente de diagnóstico de imagens
 const ImageDiagnosticTool = ({ post }: { post: Post }) => {
   const [loading, setLoading] = useState(false);
@@ -568,6 +580,21 @@ const addComment = async (postId: string, text: string) => {
     console.error('Erro ao adicionar comentário:', error);
     throw new Error('Não foi possível adicionar o comentário');
   }
+};
+
+// Função para determinar o tipo de arquivo
+const getFileType = (url: string): 'image' | 'video' | 'unknown' => {
+  if (!url) return 'unknown';
+  
+  const extension = url.split('.').pop()?.toLowerCase();
+  
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension)) {
+    return 'image';
+  } else if (['mp4', 'webm', 'ogg', 'mov', 'avi', 'wmv'].includes(extension)) {
+    return 'video';
+  }
+  
+  return 'unknown';
 };
 
 // Componente Timeline
@@ -1022,10 +1049,11 @@ const Timeline = () => {
                     )}>
                       {previewImages.map((img, idx) => (
                         <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                          <img 
+                          <ImageRenderer 
                             src={img} 
                             alt={`Imagem ${idx + 1}`} 
                             className="object-cover w-full h-full"
+							enableModal={true}
                           />
                           <Button 
                             variant="destructive" 
@@ -1041,21 +1069,23 @@ const Timeline = () => {
                   )}
  
                   {previewVideo && (
-                    <div className="mt-4 rounded-lg overflow-hidden relative">
-                      <video controls className="w-full">
-                        <source src={previewVideo} type="video/mp4" />
-                        Seu navegador não suporta a reprodução de vídeos.
-                      </video>
-                      <Button 
-                        variant="destructive" 
-                        size="icon" 
-                        className="absolute top-1 right-1 h-6 w-6 rounded-full"
-                        onClick={removeVideo}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
+					  <div className="mt-4 rounded-lg overflow-hidden relative">
+						<VideoRenderer 
+						  src={previewVideo} 
+						  alt="Preview de vídeo" 
+						  className="w-full h-64"
+						  enableModal={false}  // Não precisamos de modal no preview
+						/>
+						<Button 
+						  variant="destructive" 
+						  size="icon" 
+						  className="absolute top-1 right-1 h-6 w-6 rounded-full"
+						  onClick={removeVideo}
+						>
+						  <X className="h-3 w-3" />
+						</Button>
+					  </div>
+					)}
  
                   {showEventForm && (
                     <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
@@ -1292,54 +1322,71 @@ const Timeline = () => {
                       </div>
                     )}
                     {post.images && post.images.length > 0 && (
-                      <div className={cn(
-                        "grid gap-2 mb-4", 
-                        post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
-                      )}>
-                        {post.images.map((img, idx) => (
-                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                            <ImageRenderer 
-                              src={img} 
-                              alt={`Imagem ${idx + 1}`} 
-                              className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-                            />
-                            {showDiagnosticTools && (
-                              <Button 
-                                variant="outline"
-                                size="sm"
-                                className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  testImageAccess(img).then(result => {
-                                    console.log('Resultado do diagnóstico:', result);
-                                    toast({
-                                      title: result.success ? 'Imagem acessível' : 'Erro no acesso',
-                                      description: result.success 
-                                        ? `Status: ${result.status}, URL: ${result.testedUrl}` 
-                                        : `Erro: ${result.error || 'Desconhecido'}`,
-                                      variant: result.success ? 'default' : 'destructive'
-                                    });
-                                  });
-                                }}
-                              >
-                                Diagnosticar
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+					  <div className={cn(
+						"grid gap-2 mb-4", 
+						post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+					  )}>
+						{post.images.map((img, idx) => {
+						  const fileType = getFileType(img);
+						  
+						  return (
+							<div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+							  {fileType === 'image' ? (
+								<ImageRenderer 
+								  src={img} 
+								  alt={`Anexo ${idx + 1}`} 
+								  className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+								  enableModal={true}
+								/>
+							  ) : fileType === 'video' ? (
+								<VideoRenderer 
+								  src={img} 
+								  alt={`Anexo ${idx + 1}`} 
+								  className="w-full h-full object-cover"
+								  enableModal={true}
+								/>
+							  ) : (
+								<div className="flex items-center justify-center w-full h-full bg-gray-100 rounded-lg">
+								  <span className="text-gray-500">Anexo não suportado</span>
+								</div>
+							  )}
+							  
+							  {showDiagnosticTools && (
+								<Button 
+								  variant="outline"
+								  size="sm"
+								  className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
+								  onClick={(e) => {
+									e.stopPropagation();
+									testImageAccess(img).then(result => {
+									  console.log('Resultado do diagnóstico:', result);
+									  toast({
+										title: result.success ? 'Arquivo acessível' : 'Erro no acesso',
+										description: result.success 
+										  ? `Status: ${result.status}, URL: ${result.testedUrl}` 
+										  : `Erro: ${result.error || 'Desconhecido'}`,
+										variant: result.success ? 'default' : 'destructive'
+									  });
+									});
+								  }}
+								>
+								  Diagnosticar
+								</Button>
+							  )}
+							</div>
+						  );
+						})}
+					  </div>
+					)}
                     {post.video && (
-                      <div className="mb-4 rounded-lg overflow-hidden">
-                        <video 
-                          controls 
-                          className="w-full" 
-                          poster="https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7"
-                        >
-                          <source src={post.video} type="video/mp4" />
-                          Seu navegador não suporta a reprodução de vídeos.
-                        </video>
-                      </div>
+					  <div className="mb-4 rounded-lg overflow-hidden">
+						<VideoRenderer 
+						  src={post.video} 
+						  alt={`Vídeo do post`} 
+						  className="w-full h-64 object-cover"
+						  enableModal={true}
+						/>
+					  </div>
                     )}
                     <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
                       <div>{post.likes} curtidas</div>

@@ -1,15 +1,20 @@
-// Este componente deve ser adicionado ao seu projeto frontend em
 // src/components/ui/image-renderer.tsx
-
 import React, { useState, useEffect } from 'react';
+import { ImageModal } from './image-modal';
 
 interface ImageRendererProps {
   src: string;
   alt: string;
   className?: string;
+  enableModal?: boolean;
 }
 
-export const ImageRenderer: React.FC<ImageRendererProps> = ({ src, alt, className }) => {
+export const ImageRenderer: React.FC<ImageRendererProps> = ({ 
+  src, 
+  alt, 
+  className = "", 
+  enableModal = true 
+}) => {
   const [error, setError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string>('');
   const [attemptCount, setAttemptCount] = useState(0);
@@ -75,6 +80,23 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({ src, alt, classNam
     setLoading(false);
   };
   
+  const imageContent = (
+    <div className={`relative ${className}`}>
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500"></div>
+        </div>
+      )}
+      <img 
+        src={currentSrc}
+        alt={alt}
+        className={`w-full h-full object-cover ${loading ? 'opacity-0' : 'opacity-100'}`}
+        onError={handleError}
+        onLoad={handleLoad}
+      />
+    </div>
+  );
+
   if (error) {
     return (
       <div className={`relative ${className} bg-gray-100 flex items-center justify-center`}>
@@ -98,23 +120,18 @@ export const ImageRenderer: React.FC<ImageRendererProps> = ({ src, alt, classNam
       </div>
     );
   }
-  
-  return (
-    <div className={`relative ${className}`}>
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-500"></div>
-        </div>
-      )}
-      <img 
-        src={currentSrc}
-        alt={alt}
-        className={`w-full h-full object-cover ${loading ? 'opacity-0' : 'opacity-100'}`}
-        onError={handleError}
-        onLoad={handleLoad}
-      />
-    </div>
-  );
+
+  // Se o modal estiver habilitado e não estiver com erro, envolva a imagem com o componente ImageModal
+  if (enableModal) {
+    return (
+      <ImageModal src={currentSrc} alt={alt}>
+        {imageContent}
+      </ImageModal>
+    );
+  }
+
+  // Caso contrário, retorne apenas a imagem
+  return imageContent;
 };
 
 export default ImageRenderer;
