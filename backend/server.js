@@ -8,6 +8,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 require('dotenv').config();
 const fs = require('fs');
+
 // Importar modelos
 const { User, File, Message, Chat } = require('./models');
 
@@ -20,97 +21,69 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   }
 });
+
+// Definir caminhos de diretórios para uploads
 const uploadsPath = path.join(__dirname, 'uploads');
-app.use('/uploads', express.static(uploadsPath));
+const uploadsTimelinePath = path.join(uploadsPath, 'timeline');
+const uploadsDir = path.join(__dirname, 'uploads');
+const publicPath = path.join(__dirname, 'public');
 
-// Debug de arquivos na pasta uploads
-fs.readdir(uploadsPath, (err, files) => {
-  if (err) {
-    console.error('Erro ao ler diretório de uploads:', err);
-  } else {
-    console.log('Arquivos na pasta uploads:', files);
-    
-    // Verificar pasta timeline especificamente
-    const timelinePath = path.join(uploadsPath, 'timeline');
-    if (fs.existsSync(timelinePath)) {
-      fs.readdir(timelinePath, (err, timelineFiles) => {
-        if (err) {
-          console.error('Erro ao ler diretório de timeline:', err);
-        } else {
-          console.log('Arquivos na pasta timeline:', timelineFiles);
-        }
-      });
-    } else {
-      console.error('Pasta uploads/timeline não existe!');
-      // Criar a pasta se não existir
-      fs.mkdirSync(timelinePath, { recursive: true });
-      console.log('Pasta uploads/timeline criada');
+// Garantir que o diretório public existe para placeholder
+if (!fs.existsSync(publicPath)) {
+  fs.mkdirSync(publicPath, { recursive: true });
+  console.log(`Diretório ${publicPath} criado com sucesso`);
+  
+  // Criar um placeholder de exemplo se não existir
+  const placeholderPath = path.join(publicPath, 'placeholder.png');
+  if (!fs.existsSync(placeholderPath)) {
+    try {
+      // Criar um arquivo de placeholder simples (1x1 pixel transparente em base64)
+      const base64Data = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(placeholderPath, buffer);
+      console.log(`Arquivo placeholder criado: ${placeholderPath}`);
+    } catch (err) {
+      console.error(`Erro ao criar placeholder: ${err.message}`);
     }
   }
-});
+}
 
-// Rota de diagnóstico para verificar se um arquivo específico existe
-app.get('/api/check-file', (req, res) => {
-  const filePath = req.query.path;
-  if (!filePath) {
-    return res.status(400).json({ error: 'Caminho do arquivo não fornecido' });
-  }
-  
-  const fullPath = path.join(__dirname, filePath.startsWith('/') ? filePath.substring(1) : filePath);
-  
-  fs.access(fullPath, fs.constants.R_OK, (err) => {
-    if (err) {
-      return res.status(404).json({ 
-        error: 'Arquivo não encontrado ou não acessível',
-        path: fullPath,
-        exists: false,
-        message: err.message
-      });
-    }
-    
-    fs.stat(fullPath, (err, stats) => {
-      if (err) {
-        return res.status(500).json({ error: 'Erro ao obter informações do arquivo', message: err.message });
-      }
-      
-      res.json({
-        exists: true,
-        path: fullPath,
-        size: stats.size,
-        isFile: stats.isFile(),
-        isDirectory: stats.isDirectory(),
-        created: stats.birthtime,
-        modified: stats.mtime
-      });
-    });
-  });
-});
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/uploads/banners', express.static(path.join(__dirname, 'uploads/banners')));
-// Criar diretórios de upload necessários
-
-
-// Criar diretórios de upload se não existirem
+// Garantir que todos os diretórios de upload existam
 const createRequiredDirs = () => {
   const dirs = [
-    path.join(__dirname, 'uploads'),
-    path.join(__dirname, 'uploads/chat'),
-    path.join(__dirname, 'uploads/files'),
-    path.join(__dirname, 'uploads/knowledge'),
-	path.join(__dirname, 'uploads/timeline'),
-	path.join(__dirname, 'uploads/banners')
+    uploadsPath,
+    path.join(uploadsPath, 'chat'),
+    path.join(uploadsPath, 'files'),
+    path.join(uploadsPath, 'knowledge'),
+    path.join(uploadsPath, 'timeline'),
+    path.join(uploadsPath, 'banners')
   ];
   
   dirs.forEach(dir => {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      console.log(`Diretório ${dir} criado com sucesso`);
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`Diretório ${dir} criado com sucesso`);
+      } catch (err) {
+        console.error(`Erro ao criar diretório ${dir}:`, err);
+      }
     }
   });
 };
 
 createRequiredDirs();
+
+// Middleware para logging de requisições
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`, {
+    headers: {
+      'content-type': req.headers['content-type'],
+      'authorization': req.headers['authorization'] ? 'Bearer [REDACTED]' : 'none'
+    },
+    body: req.body ? '[PRESENT]' : '[EMPTY]'
+  });
+  next();
+});
 
 // Configuração de CORS para desenvolvimento e produção
 const corsOptions = {
@@ -136,47 +109,12 @@ const corsOptions = {
 
 // Middleware
 app.use(cors({
-  origin: '*', // Permite todas as origens
-  // Ou específico para o frontend:
-  // origin: 'http://localhost:80',
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeline')));
-
-// Adicione logs para depuração
-app.use('/uploads', (req, res, next) => {
-  const reqPath = req.path;
-  const fullPath = path.join(uploadsPath, reqPath);
-  
-  console.log(`[DEBUG] Requisição de arquivo: ${reqPath}`);
-  console.log(`[DEBUG] Caminho completo: ${fullPath}`);
-  
-  fs.access(fullPath, fs.constants.R_OK, (err) => {
-    if (err) {
-      console.error(`[DEBUG] ERRO: Arquivo não acessível: ${fullPath}`);
-      console.error(`[DEBUG] Erro: ${err.message}`);
-      // Não interrompe o fluxo, apenas registra o erro
-    } else {
-      console.log(`[DEBUG] Arquivo encontrado e acessível: ${fullPath}`);
-    }
-    next();
-  });
-});
-// Middleware para logging de requisições
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`, {
-    headers: {
-      'content-type': req.headers['content-type'],
-      'authorization': req.headers['authorization'] ? 'Bearer [REDACTED]' : 'none'
-    },
-    body: req.body ? '[PRESENT]' : '[EMPTY]'
-  });
-  next();
-});
 
 // Configuração do MongoDB
 const mongoURI = process.env.MONGODB_URI || 'mongodb://admin:admin123@mongodb:27017/intranet?authSource=admin';
@@ -197,22 +135,11 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Rotas
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/timeline', require('./routes/timeline'));
-app.use('/api/knowledge', require('./routes/knowledge'));
-app.use('/api/chat', require('./routes/chat'));
-app.use('/api/files', require('./routes/files'));
-app.use('/api/banners', require('./routes/banners'));
-
-// Configuração específica para pré-voo de upload de arquivos
-app.options('/api/files/upload', cors(corsOptions));
-
 // Middleware para verificar token (unificado)
 const verificarToken = (req, res, next) => {
   console.log('Método:', req.method, 'URL:', req.url);
   const token = req.headers['x-auth-token'] || req.headers['authorization']?.split(' ')[1];
-  console.log('Token recebido:', token);
+  console.log('Token recebido:', token ? 'Presente (oculto)' : 'Ausente');
   if (!token) {
     console.log('Erro: Token não fornecido');
     return res.status(401).json({ mensagem: 'Token não fornecido' });
@@ -222,11 +149,160 @@ const verificarToken = (req, res, next) => {
       console.log('Erro: Token inválido', err.message);
       return res.status(403).json({ mensagem: 'Token inválido' });
     }
-    console.log('Token válido, usuário:', decoded);
+    console.log('Token válido, usuário:', decoded.id);
     req.usuario = decoded;
     next();
   });
 };
+
+// Configuração para servir arquivos estáticos com tratamento de erros melhorado
+// Middleware para uploads/timeline (mais específico primeiro)
+app.use('/uploads/timeline', (req, res, next) => {
+  const filename = req.path.replace(/^\/+/, '');
+  const filePath = path.join(uploadsTimelinePath, filename);
+  
+  console.log(`Requisição para arquivo de timeline: ${filename}`);
+  console.log(`Caminho completo: ${filePath}`);
+  
+  // Verificar se o arquivo existe
+  fs.access(filePath, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error(`Arquivo não encontrado: ${filePath}`);
+      console.error(`Erro: ${err.message}`);
+      
+      // Fornecer um placeholder para imagens que não existem
+      if (req.path.match(/\.(jpg|jpeg|png|gif)$/i)) {
+        const placeholderPath = path.join(publicPath, 'placeholder.png');
+        
+        if (fs.existsSync(placeholderPath)) {
+          console.log(`Servindo placeholder para ${req.path}`);
+          return res.sendFile(placeholderPath);
+        }
+      }
+    }
+    next();
+  });
+});
+
+// Middleware para uploads gerais (depois do específico)
+app.use('/uploads', (req, res, next) => {
+  const reqPath = req.path;
+  const fullPath = path.join(uploadsPath, reqPath);
+  
+  console.log(`[DEBUG] Requisição de arquivo: ${reqPath}`);
+  console.log(`[DEBUG] Caminho completo: ${fullPath}`);
+  
+  // Verificar se o arquivo existe
+  fs.access(fullPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error(`[DEBUG] ERRO: Arquivo não acessível: ${fullPath}`);
+      console.error(`[DEBUG] Erro: ${err.message}`);
+      
+      // Em vez de falhar, servir uma imagem de placeholder
+      if (reqPath.match(/\.(jpg|jpeg|png|gif)$/i)) {
+        // Para imagens, enviar um placeholder
+        const placeholderPath = path.join(publicPath, 'placeholder.png');
+        
+        if (fs.existsSync(placeholderPath)) {
+          console.log(`[DEBUG] Servindo placeholder para ${reqPath}`);
+          return res.sendFile(placeholderPath);
+        }
+      }
+    } else {
+      console.log(`[DEBUG] Arquivo encontrado e acessível: ${fullPath}`);
+    }
+    next();
+  });
+});
+
+// Configuração para servir arquivos estáticos (após os middlewares)
+app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeline')));
+app.use('/uploads/banners', express.static(path.join(__dirname, 'uploads/banners')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Rota de diagnóstico para verificar arquivos
+app.get('/api/check-file', (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) {
+    return res.status(400).json({ error: 'Caminho do arquivo não fornecido' });
+  }
+  
+  const fullPath = path.join(__dirname, filePath.startsWith('/') ? filePath.substring(1) : filePath);
+  
+  fs.access(fullPath, fs.constants.R_OK, (err) => {
+    if (err) {
+      // Criar diretório se não existir
+      const dirPath = path.dirname(fullPath);
+      if (!fs.existsSync(dirPath)) {
+        try {
+          fs.mkdirSync(dirPath, { recursive: true });
+          console.log(`Diretório ${dirPath} criado para futuros uploads`);
+        } catch (mkdirErr) {
+          console.error(`Erro ao criar diretório ${dirPath}:`, mkdirErr);
+        }
+      }
+      
+      return res.status(404).json({ 
+        error: 'Arquivo não encontrado ou não acessível',
+        path: fullPath,
+        exists: false,
+        message: err.message,
+        parentDirExists: fs.existsSync(dirPath)
+      });
+    }
+    
+    fs.stat(fullPath, (err, stats) => {
+      if (err) {
+        return res.status(500).json({ error: 'Erro ao obter informações do arquivo', message: err.message });
+      }
+      
+      res.json({
+        exists: true,
+        path: fullPath,
+        size: stats.size,
+        isFile: stats.isFile(),
+        isDirectory: stats.isDirectory(),
+        created: stats.birthtime,
+        modified: stats.mtime
+      });
+    });
+  });
+});
+
+// Debug de arquivos na pasta uploads
+fs.readdir(uploadsPath, (err, files) => {
+  if (err) {
+    console.error('Erro ao ler diretório de uploads:', err);
+  } else {
+    console.log('Arquivos na pasta uploads:', files);
+    
+    // Verificar pasta timeline especificamente
+    if (fs.existsSync(uploadsTimelinePath)) {
+      fs.readdir(uploadsTimelinePath, (err, timelineFiles) => {
+        if (err) {
+          console.error('Erro ao ler diretório de timeline:', err);
+        } else {
+          console.log('Arquivos na pasta timeline:', timelineFiles);
+        }
+      });
+    } else {
+      console.error('Pasta uploads/timeline não existe!');
+      fs.mkdirSync(uploadsTimelinePath, { recursive: true });
+      console.log('Pasta uploads/timeline criada');
+    }
+  }
+});
+
+// Configuração específica para pré-voo de upload de arquivos
+app.options('/api/files/upload', cors(corsOptions));
+
+// Rotas
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/timeline', require('./routes/timeline'));
+app.use('/api/knowledge', require('./routes/knowledge'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/files', require('./routes/files'));
+app.use('/api/banners', require('./routes/banners'));
 
 // Rotas de autenticação
 app.post('/api/auth/register', async (req, res) => {
@@ -246,7 +322,6 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(500).json({ mensagem: 'Erro ao registrar usuário', error: error.message });
   }
 });
-
 
 app.get('/api/auth/user', verificarToken, async (req, res) => {
   try {
@@ -444,14 +519,13 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Novo cliente conectado');
   
-  
   // Entrar em uma sala de chat
   socket.on('join-chat', (chatId) => {
     socket.join(chatId);
     console.log(`${socket.userName} entrou no chat ${chatId}`);
   });
   
-    // Enviar mensagem
+  // Enviar mensagem
   socket.on('send-message', async (data) => {
     try {
       if (!socket.userId) return;
@@ -472,21 +546,20 @@ io.on('connection', (socket) => {
       console.error('Erro ao enviar mensagem:', error);
     }
   });
-	  
-	  // Ouvir por marcação de leitura
+  
+  // Ouvir por marcação de leitura
   socket.on('markAsRead', async (data) => {
-	 try {
-		const { chatId } = data;  // Ajustado para seu modelo
-		await Message.updateMany(
-		  { chatId, remetente: { $ne: socket.userId }, lida: false },
-		  { $set: { lida: true } }
-		);
-		io.to(chatId).emit('messagesRead', { chatId, userId: socket.userId });
-	  } catch (err) {
-		console.error('Erro ao marcar mensagens como lidas:', err);
-	  }
-	});
-      
+    try {
+      const { chatId } = data;  // Ajustado para seu modelo
+      await Message.updateMany(
+        { chatId, remetente: { $ne: socket.userId }, lida: false },
+        { $set: { lida: true } }
+      );
+      io.to(chatId).emit('messagesRead', { chatId, userId: socket.userId });
+    } catch (err) {
+      console.error('Erro ao marcar mensagens como lidas:', err);
+    }
+  });
   
   // Notificação de "digitando"
   socket.on('typing', (data) => {
@@ -500,12 +573,6 @@ io.on('connection', (socket) => {
     console.log('Cliente desconectado');
   });
 });
-
-// Criar pasta de uploads se não existir
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;

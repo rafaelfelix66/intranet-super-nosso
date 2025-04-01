@@ -1,5 +1,5 @@
 // src/services/api.ts
-// Para melhorar o tratamento de uploads e configuração de cabeçalhos
+// Melhorias para tratamento de erros e debug
 
 // Detectar automaticamente o ambiente e usar o host adequado
 export const getBaseUrl = () => {
@@ -124,121 +124,152 @@ export const api = {
     }
   },
   
-delete: async (endpoint: string) => {
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
-    throw new Error('Usuário não autenticado');
-  }
-  
-  try {
-    console.log(`Enviando DELETE para ${API_BASE_URL}${endpoint}`);
+  delete: async (endpoint: string) => {
+    const token = localStorage.getItem('token');
     
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Erro ${response.status}:`, errorText);
-      throw new Error(`Erro na requisição: ${response.status}`);
+    if (!token) {
+      throw new Error('Usuário não autenticado');
     }
     
-    return response.json();
-  } catch (error) {
-    console.error('Erro na requisição DELETE:', error);
-    throw error;
-  }
-},
+    try {
+      console.log(`Enviando DELETE para ${API_BASE_URL}${endpoint}`);
+      
+      // Mostrar o token parcialmente para debug (ocultando a maior parte)
+      const tokenDebug = token.substring(0, 10) + '...' + token.substring(token.length - 5);
+      console.log(`Token usado: ${tokenDebug}`);
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'x-auth-token': token // Adicionando em ambos os formatos para compatibilidade
+        }
+      });
+      
+      // Tentar obter o corpo da resposta, que pode ter detalhes do erro
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        console.error(`Erro ${response.status}:`, responseText);
+        
+        // Tentar analisar o texto como JSON se possível
+        let errorDetail;
+        try {
+          errorDetail = JSON.parse(responseText);
+        } catch (e) {
+          errorDetail = responseText;
+        }
+        
+        throw new Error(`Erro na requisição: ${response.status} - ${JSON.stringify(errorDetail)}`);
+      }
+      
+      // Tentar analisar o texto como JSON
+      try {
+        return responseText ? JSON.parse(responseText) : { success: true };
+      } catch (e) {
+        // Se não for JSON válido, simplesmente retorne o sucesso
+        return { success: true, message: responseText };
+      }
+    } catch (error) {
+      console.error('Erro na requisição DELETE:', error);
+      throw error;
+    }
+  },
   
   deletePost: async (postId: string) => {
-  try {
-    return api.delete(`/timeline/${postId}`);
-  } catch (error) {
-    console.error('Erro ao excluir post:', error);
-    throw new Error('Não foi possível excluir a publicação');
-  }
-},
+    try {
+      // Melhor tratamento de erros com mensagens mais detalhadas
+      console.log(`Iniciando exclusão do post ${postId}`);
+      const response = await api.delete(`/timeline/${postId}`);
+      console.log(`Post ${postId} excluído com sucesso:`, response);
+      return response;
+    } catch (error) {
+      console.error('Erro ao excluir post:', error);
+      // Repassar o erro para ser tratado pelo componente
+      throw error instanceof Error 
+        ? error
+        : new Error('Erro desconhecido ao excluir a publicação');
+    }
+  },
   
-upload: async (endpoint: string, formData: FormData) => {
-  const token = localStorage.getItem('token');
-  
-  if (!token) {
-    throw new Error('Usuário não autenticado');
-  }
-  
-  try {
-    console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
+  upload: async (endpoint: string, formData: FormData) => {
+    const token = localStorage.getItem('token');
     
-    // Log detalhado do FormData
-    const formDataContent = {};
-    for (const [key, value] of formData.entries()) {
-      if (value instanceof File) {
-        formDataContent[key] = `File: ${value.name} (${value.type}, ${value.size} bytes)`;
-      } else {
-        formDataContent[key] = value;
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+    
+    try {
+      console.log(`Enviando upload para ${API_BASE_URL}${endpoint}`);
+      
+      // Log detalhado do FormData
+      const formDataContent = {};
+      for (const [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          formDataContent[key] = `File: ${value.name} (${value.type}, ${value.size} bytes)`;
+        } else {
+          formDataContent[key] = value;
+        }
       }
+      console.log('FormData contém:', formDataContent);
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token  // Adicionando em ambos os formatos para compatibilidade
+          // Não definir Content-Type, deixar o navegador definir com o boundary
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Erro ${response.status}:`, errorText);
+        throw new Error(`Erro na requisição: ${response.status}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Erro na requisição de upload:', error);
+      throw error;
     }
-    console.log('FormData contém:', formDataContent);
-    
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-        // Não definir Content-Type, deixar o navegador definir com o boundary
-      },
-      body: formData
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Erro ${response.status}:`, errorText);
-      throw new Error(`Erro na requisição: ${response.status}`);
-    }
-    
-    return response.json();
-  } catch (error) {
-    console.error('Erro na requisição de upload:', error);
-    throw error;
-  }
-},
+  },
 
-	uploadPut: async (endpoint: string, formData: FormData) => {
-	  const token = localStorage.getItem('token');
-	  
-	  if (!token) {
-		throw new Error('Usuário não autenticado');
-	  }
-	  
-	  try {
-		console.log(`Enviando upload PUT para ${API_BASE_URL}${endpoint}`);
-		console.log('FormData contém arquivos:', formData.getAll('image').length);
-		
-		const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-		  method: 'PUT',  // Mudamos para PUT
-		  headers: {
-			'Authorization': `Bearer ${token}`
-			// Não definimos Content-Type aqui
-		  },
-		  body: formData
-		});
-		
-		if (!response.ok) {
-		  const errorText = await response.text();
-		  console.error(`Erro ${response.status}:`, errorText);
-		  throw new Error(`Erro no upload: ${response.status}`);
-		}
-		
-		return response.json();
-	  } catch (error) {
-		console.error('Erro na requisição de upload:', error);
-		throw error;
-	  }
-	},
+  uploadPut: async (endpoint: string, formData: FormData) => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+    
+    try {
+      console.log(`Enviando upload PUT para ${API_BASE_URL}${endpoint}`);
+      console.log('FormData contém arquivos:', formData.getAll('image').length);
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'PUT',  // Mudamos para PUT
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token  // Adicionando em ambos os formatos para compatibilidade
+          // Não definimos Content-Type aqui
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Erro ${response.status}:`, errorText);
+        throw new Error(`Erro no upload: ${response.status}`);
+      }
+      
+      return response.json();
+    } catch (error) {
+      console.error('Erro na requisição de upload:', error);
+      throw error;
+    }
+  },
   
   // Funções específicas para banners
   banners: {
@@ -259,7 +290,8 @@ upload: async (endpoint: string, formData: FormData) => {
       const response = await fetch(`${API_BASE_URL}/banners/${id}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'x-auth-token': localStorage.getItem('token')
         },
         body: formData
       });

@@ -490,25 +490,35 @@ const createNewPostApi = async (
   try {
     const formData = new FormData();
     
+    // Adicionar texto se existir
     if (text) {
       formData.append('text', text);
     }
     
+    // Adicionar arquivos se existirem
     if (files.length > 0) {
       files.forEach(file => {
         formData.append('attachments', file);
       });
     }
     
+    // Processar dados do evento
     if (eventData) {
+      // Certificar-se de que o eventData seja uma string JSON
       formData.append('eventData', JSON.stringify(eventData));
+      console.log("Evento adicionado ao FormData:", JSON.stringify(eventData));
     }
     
     console.log("Enviando formData:", {
       text,
       filesCount: files.length,
-      eventData: eventData ? 'presente' : 'ausente'
+      eventData: eventData ? JSON.stringify(eventData) : 'ausente'
     });
+    
+    // Verificar o FormData antes de enviar
+    for (const [key, value] of formData.entries()) {
+      console.log(`FormData contém: ${key} => ${typeof value === 'object' ? 'File/Object' : value}`);
+    }
     
     const data = await api.upload('/timeline', formData);
     console.log("Resposta do servidor:", data);
@@ -534,13 +544,15 @@ const createNewPostApi = async (
         .map(att => normalizePath(att));
     }
     
+    // Processar dados do evento
     if (data.eventData) {
       try {
         formattedPost.event = typeof data.eventData === 'string' 
           ? JSON.parse(data.eventData)
           : data.eventData;
+        console.log("Evento processado no retorno:", formattedPost.event);
       } catch (e) {
-        console.error('Erro ao processar dados do evento:', e);
+        console.error('Erro ao processar dados do evento na resposta:', e);
       }
     }
     
@@ -759,8 +771,12 @@ const Timeline = () => {
     return;
   }
 
-  // Verificar se há conteúdo para postar
-  if (!newPostContent.trim() && !showEventForm && selectedImages.length === 0 && !selectedVideo) {
+  // Verificar conteúdo mínimo para publicação
+  const hasContent = newPostContent.trim().length > 0;
+  const hasMedia = selectedImages.length > 0 || selectedVideo !== null;
+  const hasEvent = showEventForm && eventTitle.trim() && eventLocation.trim() && eventDate;
+
+  if (!hasContent && !hasMedia && !hasEvent) {
     toast({
       title: "Conteúdo vazio",
       description: "Adicione um texto, mídia ou um evento para publicar.",
@@ -769,7 +785,7 @@ const Timeline = () => {
     return;
   }
 
-  // Verificar dados do evento
+  // Validar dados do evento se estiver habilitado
   if (showEventForm && (!eventTitle.trim() || !eventLocation.trim() || !eventDate)) {
     toast({
       title: "Detalhes do evento incompletos",
@@ -780,27 +796,29 @@ const Timeline = () => {
   }
 
   try {
+    // Preparar arquivos
     const files = selectedVideo ? [selectedVideo] : selectedImages;
     
-    // Formatar os dados do evento corretamente
+    // Preparar dados do evento
     let eventData = undefined;
     if (showEventForm && eventDate) {
       eventData = {
-        title: eventTitle,
+        title: eventTitle.trim(),
         date: format(eventDate, "d 'de' MMMM, yyyy", { locale: ptBR }),
-        location: eventLocation
+        location: eventLocation.trim()
       };
-      console.log("Dados do evento formatados:", eventData);
+      
+      console.log("Dados do evento a serem enviados:", eventData);
     }
 
-    // Adicionar log para depuração
-    console.log("Enviando post com:", {
-      texto: newPostContent,
-      arquivos: files.length,
-      evento: eventData
+    // Indicar que estamos processando
+    toast({
+      title: "Enviando publicação",
+      description: "Aguarde enquanto processamos sua publicação..."
     });
 
     const newPost = await createNewPostApi(newPostContent, files, eventData);
+    
     setPosts(prevPosts => [newPost, ...prevPosts]);
 
     toast({ 
@@ -829,6 +847,27 @@ const Timeline = () => {
   }
 };
 
+
+  
+	// Componente para exibir informações de evento
+	const EventCard = ({ event }) => {
+	  if (!event || !event.title || !event.date || !event.location) {
+		return null;
+	  }
+
+	  return (
+		<div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
+		  <div className="flex items-center">
+			<Calendar className="h-5 w-5 text-[#e60909] mr-2" />
+			<h4 className="font-medium text-[#e60909]">{event.title}</h4>
+		  </div>
+		  <div className="text-sm ml-7 space-y-1 mt-1">
+			<p className="text-gray-600">{event.date}</p>
+			<p className="text-gray-600">{event.location}</p>
+		  </div>
+		</div>
+	  );
+	};
   const handleLike = async (postId: string) => {
     if (!token) {
       console.error('Token não encontrado');
@@ -995,7 +1034,7 @@ const Timeline = () => {
         ? posts.filter(post => post.video)
         : posts.filter(post => post.event);
 
-  const deletePost = async (postId: string) => {
+const deletePost = async (postId: string) => {
   if (!token) {
     console.error('Token não encontrado');
     navigate('/login');
@@ -1014,16 +1053,35 @@ const Timeline = () => {
             size="sm"
             onClick={async () => {
               try {
-                await api.deletePost(postId);
-                setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-                toast({ 
-                  title: "Sucesso", 
-                  description: "Publicação excluída com sucesso." 
-                });
+                console.log(`Iniciando exclusão do post ${postId}`);
+                
+                // Melhorar tratamento de erros
+                try {
+                  await api.deletePost(postId);
+                  
+                  // Atualizar estado localmente após confirmar a exclusão bem-sucedida
+                  setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+                  
+                  toast({ 
+                    title: "Sucesso", 
+                    description: "Publicação excluída com sucesso." 
+                  });
+                } catch (error) {
+                  console.error('Erro na exclusão do post:', error);
+                  
+                  // Mensagem mais descritiva do erro
+                  toast({
+                    title: "Erro",
+                    description: error instanceof Error 
+                      ? `Falha ao excluir: ${error.message}`
+                      : "Não foi possível excluir a publicação.",
+                    variant: "destructive"
+                  });
+                }
               } catch (error) {
                 toast({
                   title: "Erro",
-                  description: "Não foi possível excluir a publicação.",
+                  description: "Não foi possível completar a ação.",
                   variant: "destructive"
                 });
               }
@@ -1047,10 +1105,10 @@ const Timeline = () => {
       ),
     });
   } catch (error) {
-    console.error('Erro ao excluir post:', error);
+    console.error('Erro ao processar exclusão:', error);
     toast({ 
       title: "Erro", 
-      description: "Não foi possível excluir a publicação.",
+      description: "Não foi possível processar a solicitação de exclusão.",
       variant: "destructive" 
     });
   }
@@ -1165,72 +1223,77 @@ const Timeline = () => {
 					)}
  
                   {showEventForm && (
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-[#e60909] flex items-center gap-2">
-                          <Calendar className="h-4 w-4" /> 
-                          Detalhes do Evento
-                        </h3>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-6 w-6" 
-                          onClick={toggleEventForm}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="grid w-full items-center gap-1.5">
-                          <Label htmlFor="event-title">Título do evento</Label>
-                          <Input
-                            id="event-title"
-                            placeholder="Ex: Reunião de Equipe"
-                            value={eventTitle}
-                            onChange={(e) => setEventTitle(e.target.value)}
-                          />
-                        </div>
-                        <div className="grid w-full items-center gap-1.5">
-                          <Label htmlFor="event-location">Local</Label>
-                          <Input
-                            id="event-location"
-                            placeholder="Ex: Sala de Reuniões, Loja Centro"
-                            value={eventLocation}
-                            onChange={(e) => setEventLocation(e.target.value)}
-                          />
-                        </div>
-                        <div className="grid w-full items-center gap-1.5">
-                          <Label>Data</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "w-full justify-start text-left font-normal",
-                                  !eventDate && "text-muted-foreground"
-                                )}
-                              >
-                                <Calendar className="mr-2 h-4 w-4" />
-                                {eventDate ? (
-                                  format(eventDate, "PPP", { locale: ptBR })
-                                ) : (
-                                  <span>Selecione uma data</span>
-                                )}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <CalendarComponent
-                                mode="single"
-                                selected={eventDate}
-                                onSelect={setEventDate}
-                                initialFocus
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+					  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
+						<div className="flex items-center justify-between">
+						  <h3 className="font-medium text-[#e60909] flex items-center gap-2">
+							<Calendar className="h-4 w-4" /> 
+							Detalhes do Evento
+						  </h3>
+						  <Button 
+							variant="ghost" 
+							size="icon" 
+							className="h-6 w-6" 
+							onClick={toggleEventForm}
+						  >
+							<X className="h-4 w-4" />
+						  </Button>
+						</div>
+						<div className="space-y-3">
+						  <div className="grid w-full items-center gap-1.5">
+							<Label htmlFor="event-title">Título do evento *</Label>
+							<Input
+							  id="event-title"
+							  placeholder="Ex: Reunião de Equipe"
+							  value={eventTitle}
+							  onChange={(e) => setEventTitle(e.target.value)}
+							  className={!eventTitle.trim() ? "border-red-300 focus-visible:ring-red-500" : ""}
+							/>
+						  </div>
+						  <div className="grid w-full items-center gap-1.5">
+							<Label htmlFor="event-location">Local *</Label>
+							<Input
+							  id="event-location"
+							  placeholder="Ex: Sala de Reuniões, Loja Centro"
+							  value={eventLocation}
+							  onChange={(e) => setEventLocation(e.target.value)}
+							  className={!eventLocation.trim() ? "border-red-300 focus-visible:ring-red-500" : ""}
+							/>
+						  </div>
+						  <div className="grid w-full items-center gap-1.5">
+							<Label>Data *</Label>
+							<Popover>
+							  <PopoverTrigger asChild>
+								<Button
+								  variant="outline"
+								  className={cn(
+									"w-full justify-start text-left font-normal",
+									!eventDate && "text-muted-foreground border-red-300"
+								  )}
+								>
+								  <Calendar className="mr-2 h-4 w-4" />
+								  {eventDate ? (
+									format(eventDate, "PPP", { locale: ptBR })
+								  ) : (
+									<span>Selecione uma data</span>
+								  )}
+								</Button>
+							  </PopoverTrigger>
+							  <PopoverContent className="w-auto p-0">
+								<CalendarComponent
+								  mode="single"
+								  selected={eventDate}
+								  onSelect={setEventDate}
+								  initialFocus
+								/>
+							  </PopoverContent>
+							</Popover>
+							{showEventForm && !eventDate && (
+							  <p className="text-xs text-red-500 mt-1">Data é obrigatória</p>
+							)}
+						  </div>
+						</div>
+					  </div>
+					)}
 
                   <div className="flex gap-2">
                     <input 
@@ -1393,96 +1456,102 @@ const Timeline = () => {
                       </DropdownMenu>
                     </div>
                   </CardHeader>
-                  <CardContent className="pb-3">
-                    <p className="mb-4 whitespace-pre-line">{post.content}</p>
-                    {post.event && (
-                      <div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
-                        <div className="flex items-center">
-                          <Calendar className="h-5 w-5 text-[#e60909] mr-2" />
-                          <h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
-                        </div>
-                        <div className="text-sm ml-7 space-y-1 mt-1">
-                          <p className="text-gray-600">{post.event.date}</p>
-                          <p className="text-gray-600">{post.event.location}</p>
-                        </div>
-                      </div>
-                    )}
-                    {post.images && post.images.length > 0 && (
-					  <div className={cn(
-						"grid gap-2 mb-4", 
-						post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
-					  )}>
-						{post.images.map((img, idx) => {
-						  const fileType = getFileType(img);
-						  
-						  return (
-							<div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-							  {fileType === 'image' ? (
-								<ImageRenderer 
-								  src={img} 
-								  alt={`Anexo ${idx + 1}`} 
-								  className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-								  enableModal={true}
-								/>
-							  ) : fileType === 'video' ? (
-								<VideoRenderer 
-								  src={img} 
-								  alt={`Anexo ${idx + 1}`} 
-								  className="w-full h-full object-cover"
-								  enableModal={true}
-								/>
-							  ) : (
-								<div className="flex items-center justify-center w-full h-full bg-gray-100 rounded-lg">
-								  <span className="text-gray-500">Anexo não suportado</span>
-								</div>
-							  )}
-							  
-							  {showDiagnosticTools && (
-								<Button 
-								  variant="outline"
-								  size="sm"
-								  className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
-								  onClick={(e) => {
-									e.stopPropagation();
-									testImageAccess(img).then(result => {
-									  console.log('Resultado do diagnóstico:', result);
-									  toast({
-										title: result.success ? 'Arquivo acessível' : 'Erro no acesso',
-										description: result.success 
-										  ? `Status: ${result.status}, URL: ${result.testedUrl}` 
-										  : `Erro: ${result.error || 'Desconhecido'}`,
-										variant: result.success ? 'default' : 'destructive'
+					<CardContent className="pb-3">
+					  <p className="mb-4 whitespace-pre-line">{post.content}</p>
+					  
+					  {/* Exibição de informações do evento */}
+					  {post.event && (
+						<div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
+						  <div className="flex items-center">
+							<Calendar className="h-5 w-5 text-[#e60909] mr-2" />
+							<h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
+						  </div>
+						  <div className="text-sm ml-7 space-y-1 mt-1">
+							<p className="text-gray-600">{post.event.date}</p>
+							<p className="text-gray-600">{post.event.location}</p>
+						  </div>
+						</div>
+					  )}
+					  
+					  {/* Exibição de imagens */}
+					  {post.images && post.images.length > 0 && (
+						<div className={cn(
+						  "grid gap-2 mb-4", 
+						  post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+						)}>
+						  {post.images.map((img, idx) => {
+							const fileType = getFileType(img);
+							
+							return (
+							  <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+								{fileType === 'image' ? (
+								  <ImageRenderer 
+									src={img} 
+									alt={`Anexo ${idx + 1}`} 
+									className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+									enableModal={true}
+								  />
+								) : fileType === 'video' ? (
+								  <VideoRenderer 
+									src={img} 
+									alt={`Anexo ${idx + 1}`} 
+									className="w-full h-full object-cover"
+									enableModal={true}
+								  />
+								) : (
+								  <div className="flex items-center justify-center w-full h-full bg-gray-100 rounded-lg">
+									<span className="text-gray-500">Anexo não suportado</span>
+								  </div>
+								)}
+								
+								{showDiagnosticTools && (
+								  <Button 
+									variant="outline"
+									size="sm"
+									className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
+									onClick={(e) => {
+									  e.stopPropagation();
+									  testImageAccess(img).then(result => {
+										console.log('Resultado do diagnóstico:', result);
+										toast({
+										  title: result.success ? 'Arquivo acessível' : 'Erro no acesso',
+										  description: result.success 
+											? `Status: ${result.status}, URL: ${result.testedUrl}` 
+											: `Erro: ${result.error || 'Desconhecido'}`,
+										  variant: result.success ? 'default' : 'destructive'
+										});
 									  });
-									});
-								  }}
-								>
-								  Diagnosticar
-								</Button>
-							  )}
-							</div>
-						  );
-						})}
+									}}
+								  >
+									Diagnosticar
+								  </Button>
+								)}
+							  </div>
+							);
+						  })}
+						</div>
+					  )}
+					  
+					  {post.video && (
+						<div className="mb-4 rounded-lg overflow-hidden">
+						  <VideoRenderer 
+							src={post.video} 
+							alt={`Vídeo do post`} 
+							className="w-full h-64 object-cover"
+							enableModal={true}
+						  />
+						</div>
+					  )}
+					  
+					  <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
+						<div>{post.likes} curtidas</div>
+						<div>{post.comments.length} comentários</div>
 					  </div>
-					)}
-                    {post.video && (
-					  <div className="mb-4 rounded-lg overflow-hidden">
-						<VideoRenderer 
-						  src={post.video} 
-						  alt={`Vídeo do post`} 
-						  className="w-full h-64 object-cover"
-						  enableModal={true}
-						/>
-					  </div>
-                    )}
-                    <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
-                      <div>{post.likes} curtidas</div>
-                      <div>{post.comments.length} comentários</div>
-                    </div>
-                    
-                    {showDiagnosticTools && post.images && post.images.length > 0 && (
-                      <ImageDiagnosticTool post={post} />
-                    )}
-                  </CardContent>
+					  
+					  {showDiagnosticTools && post.images && post.images.length > 0 && (
+						<ImageDiagnosticTool post={post} />
+					  )}
+					</CardContent>
                   <CardFooter className="flex flex-col space-y-4">
                     <div className="flex justify-around w-full border-y py-1">
                       <Button 

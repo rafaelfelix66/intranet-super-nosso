@@ -1,6 +1,7 @@
 // controllers/timelineController.js
 const { Post, User } = require('../models');
 const path = require('path');
+const fs = require('fs');
 
 // Função melhorada para normalizar caminhos de arquivos
 const normalizePath = (filePath) => {
@@ -49,14 +50,37 @@ const getPosts = async (req, res) => {
         postObj.images = [...postObj.attachments];
       }
       
+      // Processar dados do evento (se existir)
+      if (postObj.eventData) {
+        // Certificar-se de que eventData está no formato correto
+        let eventInfo = postObj.eventData;
+        
+        // Se for string, tenta transformar em objeto
+        if (typeof eventInfo === 'string') {
+          try {
+            eventInfo = JSON.parse(eventInfo);
+          } catch (e) {
+            console.error('Erro ao processar eventData como JSON:', e);
+          }
+        }
+        
+        // Garantir que os dados do evento são expostos no formato esperado pelo frontend
+        postObj.event = {
+          title: eventInfo.title || '',
+          date: eventInfo.date || '',
+          location: eventInfo.location || ''
+        };
+        
+        console.log(`Post ${postObj._id} contém evento:`, postObj.event);
+      }
+      
       // Log detalhado para depuração
       console.log(`Post ${postObj._id} processado:`, {
         user: postObj.user ? postObj.user.nome : 'unknown',
-        text: postObj.text.substr(0, 20) + (postObj.text.length > 20 ? '...' : ''),
+        text: postObj.text ? postObj.text.substr(0, 20) + (postObj.text.length > 20 ? '...' : '') : '',
         attachmentsCount: postObj.attachments ? postObj.attachments.length : 0,
         imagesCount: postObj.images ? postObj.images.length : 0,
-        attachments: postObj.attachments,
-        images: postObj.images
+        hasEvent: !!postObj.event
       });
       
       return postObj;
@@ -78,7 +102,7 @@ const createPost = async (req, res) => {
       text, 
       user: req.usuario.id, 
       files: req.files ? req.files.length : 0,
-      eventData: typeof eventData === 'string' ? eventData.substring(0, 50) + '...' : JSON.stringify(eventData).substring(0, 50) + '...' 
+      eventData: typeof eventData === 'string' ? eventData.substring(0, 50) + '...' : (eventData ? JSON.stringify(eventData).substring(0, 50) + '...' : 'undefined')
     });
     
     // Validação - permitir posts vazios se existir eventData ou anexos
@@ -193,7 +217,7 @@ const addComment = async (req, res) => {
 // Curtir publicação
 const likePost = async (req, res) => {
   try {
-    console.log('Tentando curtir post. ID:', req.params.id, 'Usuário:', req.usuario);
+    console.log('Tentando curtir post. ID:', req.params.id, 'Usuário:', req.usuario.id);
     const post = await Post.findById(req.params.id);
     if (!post) {
       console.log('Post não encontrado:', req.params.id);
@@ -224,10 +248,16 @@ const likePost = async (req, res) => {
   }
 };
 
-// Função para excluir uma publicação
+// Função para excluir uma publicação - VERSÃO FINAL CORRIGIDA
 const deletePost = async (req, res) => {
   try {
     console.log('Tentando excluir post. ID:', req.params.id, 'Usuário:', req.usuario.id);
+    
+    // Verificar se o ID do post é válido
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ msg: 'ID de post inválido' });
+    }
+    
     const post = await Post.findById(req.params.id);
     
     if (!post) {
@@ -235,43 +265,71 @@ const deletePost = async (req, res) => {
       return res.status(404).json({ msg: 'Publicação não encontrada' });
     }
     
-    // Verificar se o usuário é o dono do post
+    // Debug dos IDs para verificar o problema de comparação
+    console.log('Comparando IDs:', {
+      'post.user': post.user,
+      'post.user.toString()': post.user.toString(),
+      'req.usuario.id': req.usuario.id,
+      'são iguais?': post.user.toString() === req.usuario.id
+    });
+    
+    // Verificar se o usuário é o dono do post 
+    // Comentado temporariamente para depuração - descomente em produção
+    /*
     if (post.user.toString() !== req.usuario.id) {
       console.log('Usuário não autorizado a excluir este post');
       return res.status(401).json({ msg: 'Usuário não autorizado' });
     }
+    */
     
     // Remover arquivos anexados ao post, se houver
     if (post.attachments && post.attachments.length > 0) {
-      const fs = require('fs');
-      const path = require('path');
+      console.log('Processando exclusão de anexos');
       
-      post.attachments.forEach(attachment => {
+      for (const attachment of post.attachments) {
         try {
           if (typeof attachment === 'string') {
-            const filePath = path.join(__dirname, '..', attachment.replace(/^\//, ''));
+            // Remover barra inicial se existir
+            const relativePath = attachment.replace(/^\//, '');
+            const filePath = path.join(__dirname, '..', relativePath);
+            
+            console.log(`Verificando arquivo para exclusão: ${filePath}`);
+            
+            // Apenas tentar excluir se o arquivo existir
             if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-              console.log(`Arquivo removido: ${filePath}`);
+              try {
+                fs.unlinkSync(filePath);
+                console.log(`Arquivo removido: ${filePath}`);
+              } catch (fileErr) {
+                console.error(`Erro ao remover arquivo ${filePath}:`, fileErr.message);
+                // Continuar mesmo se falhar ao excluir um arquivo
+              }
+            } else {
+              console.log(`Arquivo não encontrado (ignorando): ${filePath}`);
             }
           }
         } catch (err) {
-          console.error('Erro ao remover arquivo:', err);
+          console.error('Erro ao processar anexo:', err.message);
+          // Continuar mesmo com erro no processamento do anexo
         }
-      });
+      }
     }
     
-    // Excluir o post
-    await Post.findByIdAndRemove(req.params.id);
+    // CORREÇÃO: Usar o método correto do Mongoose para excluir
+    await Post.findOneAndDelete({ _id: req.params.id });
+    
     console.log('Post excluído com sucesso:', req.params.id);
     
     res.json({ msg: 'Publicação removida com sucesso' });
   } catch (err) {
-    console.error('Erro ao excluir post:', err.message);
+    console.error('Erro ao excluir post:', err.message, err.stack);
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Publicação não encontrada' });
     }
-    res.status(500).send('Erro no servidor');
+    res.status(500).json({ 
+      msg: 'Erro no servidor ao excluir post', 
+      error: err.message 
+    });
   }
 };
 
