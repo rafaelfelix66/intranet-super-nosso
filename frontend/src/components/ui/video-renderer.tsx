@@ -1,7 +1,8 @@
 // src/components/ui/video-renderer.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { VideoModal } from './video-modal';
-import { Play, Pause, Maximize2 } from 'lucide-react';
+import { Play, Pause, Maximize2, X, Download, Volume2, VolumeX } from 'lucide-react';
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface VideoRendererProps {
   src: string;
@@ -25,8 +26,12 @@ export const VideoRenderer: React.FC<VideoRendererProps> = ({
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [muted, setMuted] = useState(false);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const hiddenVideoRef = useRef<HTMLVideoElement>(null);
+  const modalVideoRef = useRef<HTMLVideoElement>(null);
   
   useEffect(() => {
     setError(false);
@@ -215,15 +220,61 @@ export const VideoRenderer: React.FC<VideoRendererProps> = ({
     }
   };
   
-  const openFullscreen = (e: React.MouseEvent) => {
+  // Funções do modal
+  const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
+    const link = document.createElement('a');
+    link.href = currentSrc;
+    link.download = alt || 'video';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (modalVideoRef.current) {
+      modalVideoRef.current.muted = !modalVideoRef.current.muted;
+      setMuted(!muted);
+    }
+  };
+
+  const toggleModalPlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!modalVideoRef.current) return;
     
-    // Se estiver reproduzindo diretamente na timeline, pause o vídeo
-    if (isPlaying && videoRef.current) {
-      videoRef.current.pause();
+    if (modalVideoRef.current.paused) {
+      modalVideoRef.current.play()
+        .then(() => setIsPlaying(true))
+        .catch(err => console.warn('Erro ao reproduzir vídeo no modal:', err));
+    } else {
+      modalVideoRef.current.pause();
       setIsPlaying(false);
     }
   };
+  
+  // Quando o modal abrir, iniciar o vídeo
+  useEffect(() => {
+    if (modalOpen && modalVideoRef.current) {
+      const playVideo = async () => {
+        try {
+          await modalVideoRef.current?.play();
+          setIsPlaying(true);
+        } catch (err) {
+          console.warn('Erro ao reproduzir vídeo no modal:', err);
+        }
+      };
+      
+      // Pequeno timeout para garantir que o modal está totalmente aberto
+      setTimeout(playVideo, 300);
+    }
+    
+    // Quando o modal fechar, pausar o vídeo
+    if (!modalOpen && modalVideoRef.current && !modalVideoRef.current.paused) {
+      modalVideoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [modalOpen]);
   
   const videoContent = (
     <div 
@@ -261,11 +312,21 @@ export const VideoRenderer: React.FC<VideoRendererProps> = ({
         onPlay={() => handleVideoStateChange()}
         onPause={() => handleVideoStateChange()}
         onEnded={handleVideoEnded}
+        onClick={(e) => {
+          e.stopPropagation();
+          togglePlay(e);
+        }}
       />
       
       {/* Thumbnail com ícone de play (visível quando o vídeo não está reproduzindo) */}
       {!isPlaying && (
-        <div className="relative w-full h-full">
+        <div 
+          className="relative w-full h-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePlay(e);
+          }}
+        >
           {thumbnail && (
             <img 
               src={thumbnail} 
@@ -278,7 +339,10 @@ export const VideoRenderer: React.FC<VideoRendererProps> = ({
           <div className="absolute inset-0 flex items-center justify-center">
             <div 
               className="bg-black/30 rounded-full p-3 transform transition-transform duration-200 group-hover:scale-110 cursor-pointer"
-              onClick={togglePlay}
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePlay(e);
+              }}
             >
               <Play className="h-8 w-8 text-white fill-white" />
             </div>
@@ -300,11 +364,16 @@ export const VideoRenderer: React.FC<VideoRendererProps> = ({
           )}
         </button>
         
-        {/* Botão para abrir o modal */}
+        {/* Botão para abrir o modal - SOLUÇÃO DIRETA */}
         {enableModal && (
           <button 
             className="bg-black/40 hover:bg-black/60 rounded-full p-2 text-white"
-            onClick={openFullscreen}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // Abrir o modal diretamente
+              setModalOpen(true);
+            }}
           >
             <Maximize2 className="h-4 w-4" />
           </button>
@@ -337,17 +406,73 @@ export const VideoRenderer: React.FC<VideoRendererProps> = ({
     );
   }
 
-  // Se o modal estiver habilitado e não estiver com erro, envolva o vídeo com o componente VideoModal
-  if (enableModal) {
-    return (
-      <VideoModal src={currentSrc} alt={alt} poster={thumbnail || externalPoster}>
-        {videoContent}
-      </VideoModal>
-    );
-  }
-
-  // Caso contrário, retorne apenas o vídeo com os controles diretos
-  return videoContent;
+  return (
+    <>
+      {videoContent}
+      
+      {/* Dialog Modal integrado diretamente no componente */}
+      {enableModal && (
+        <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+          <DialogContent className="sm:max-w-4xl p-0 bg-transparent border-0 overflow-hidden">
+            <div className="relative w-full h-full">
+              <div className="absolute top-2 right-2 flex gap-2 z-10">
+                <Button 
+                  className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 text-white p-0"
+                  size="icon"
+                  onClick={toggleMute}
+                >
+                  {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+                <Button 
+                  className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 text-white p-0"
+                  size="icon"
+                  onClick={handleDownload}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button 
+                  className="h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 text-white p-0"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setModalOpen(false);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <div className="flex items-center justify-center h-full w-full overflow-auto bg-black/90 rounded-lg">
+                <div className="p-4 max-h-[90vh] w-full relative group">
+                  <video
+                    ref={modalVideoRef}
+                    src={currentSrc}
+                    poster={thumbnail || externalPoster}
+                    className="max-w-full max-h-[80vh] mx-auto rounded-lg"
+                    onClick={toggleModalPlay}
+                    onError={(e) => {
+                      console.error(`Erro ao carregar vídeo no modal: ${currentSrc}`);
+                    }}
+                  />
+                  
+                  {/* Controle central de play/pause que aparece ao passar o mouse */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-black/30 rounded-full p-4 transform transition-transform duration-200 pointer-events-auto cursor-pointer" onClick={toggleModalPlay}>
+                      {isPlaying ? (
+                        <Pause className="h-8 w-8 text-white" />
+                      ) : (
+                        <Play className="h-8 w-8 text-white" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
 };
 
 export default VideoRenderer;

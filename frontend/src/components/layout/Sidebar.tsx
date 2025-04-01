@@ -1,4 +1,4 @@
-
+//src\components\layout\Sidebar.tsx
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
@@ -10,7 +10,7 @@ import {
   Menu, 
   X, 
   Settings, 
-  LogOut ,
+  LogOut,
   LayoutDashboard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,9 +33,11 @@ const SidebarItem = ({ icon: Icon, to, label, active, isOpen }: SidebarItemProps
       <Button
         variant="ghost"
         className={cn(
-          "w-full justify-start gap-3 my-1 font-normal transition-all",
+          "sidebar-item w-full justify-start gap-3 my-1 font-normal transition-all",
           !isOpen && "px-0 justify-center",
-          active ? "bg-[#e60909]/20 text-[#e60909]" : "hover:bg-[#e60909]/20 hover:text-[#e60909]"
+          active ? 
+            "sidebar-item-active bg-white/40 text-white font-medium border-l-4 border-white" : 
+            "hover:bg-white/15 hover:text-white"
         )}
       >
         <Icon size={20} />
@@ -86,7 +88,11 @@ export function Sidebar() {
   };
 
   const getActivePath = (path: string) => {
-    return location.pathname === path;
+    // Lógica melhorada para detectar caminhos ativos, incluindo subcaminhos
+    if (path === "/") {
+      return location.pathname === "/";
+    }
+    return location.pathname.startsWith(path);
   };
 
   const handleLogout = () => {
@@ -116,7 +122,8 @@ export function Sidebar() {
         className={cn(
           "fixed top-0 left-0 h-full shadow-lg transition-all duration-300 z-40",
           isOpen ? "w-64" : isMobile ? "w-0 -translate-x-full" : "w-16",
-          "flex flex-col overflow-hidden bg-[#e60909] text-white"
+          "flex flex-col overflow-hidden bg-[#e60909] text-white",
+          !isOpen && "sidebar-collapsed"
         )}
       >
         <div className="p-4 border-b border-white/20 flex items-center justify-between">
@@ -180,13 +187,13 @@ export function Sidebar() {
             active={getActivePath("/base-conhecimento")} 
             isOpen={isOpen}
           />
-		  <SidebarItem 
-			icon={LayoutDashboard} 
-			to="/admin/banners" 
-			label="Gerenciar Banners" 
-			active={getActivePath("/admin/banners")} 
-			isOpen={isOpen}
-		  />
+          <SidebarItem 
+            icon={LayoutDashboard} 
+            to="/admin/banners" 
+            label="Gerenciar Banners" 
+            active={getActivePath("/admin/banners")} 
+            isOpen={isOpen}
+          />
           <SidebarItem 
             icon={Settings} 
             to="/configuracoes" 

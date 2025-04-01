@@ -1,4 +1,4 @@
-
+//src\components\layout\layout.tsx
 import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
@@ -17,7 +17,7 @@ export function Layout({ children }: LayoutProps) {
       <Sidebar />
       <div className={cn(
         "flex-1 flex flex-col transition-all",
-        isMobile ? "ml-0" : "ml-20"
+        isMobile ? "ml-0" : "ml-16"
       )}>
         <Header />
         <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-screen-2xl mx-auto w-full animate-fade-in">

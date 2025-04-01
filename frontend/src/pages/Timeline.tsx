@@ -431,7 +431,8 @@ const fetchPosts = async () => {
           text: post.text ? post.text.substring(0, 30) : "Sem texto",
           hasAttachments: !!post.attachments && post.attachments.length > 0,
           attachments: post.attachments,
-          images: post.images
+          images: post.images,
+		  event: post.event 
         });
         
         const formattedPost = {
@@ -456,8 +457,14 @@ const fetchPosts = async () => {
             like.toString() === userId || 
             like === userId
           ) || false,
-          images: []
+          images: [],
+		  event: post.event || null
         };
+        
+		 // Verificar se o evento está completo
+        if (formattedPost.event) {
+          console.log(`Post ${post._id} tem evento:`, formattedPost.event);
+        }
         
         // Processar imagens/anexos - simplificado para usar apenas attachments
         if (post.attachments && post.attachments.length > 0) {
@@ -534,7 +541,8 @@ const createNewPostApi = async (
       likes: data.likes?.length || 0,
       comments: [],
       liked: false,
-      images: []
+      images: [],
+	  event: null as any
     };
     
     // Processar imagens/anexos
@@ -545,16 +553,40 @@ const createNewPostApi = async (
     }
     
     // Processar dados do evento
-    if (data.eventData) {
+    if (data.eventData || data.event) {
       try {
-        formattedPost.event = typeof data.eventData === 'string' 
-          ? JSON.parse(data.eventData)
-          : data.eventData;
-        console.log("Evento processado no retorno:", formattedPost.event);
+        // O controlador pode retornar eventData ou event já processado
+        if (data.event) {
+          formattedPost.event = data.event;
+          console.log("Evento já processado pelo backend:", formattedPost.event);
+        } else if (data.eventData) {
+          const eventInfo = typeof data.eventData === 'string' 
+            ? JSON.parse(data.eventData)
+            : data.eventData;
+            
+          formattedPost.event = {
+            title: eventInfo.title || '',
+            date: eventInfo.date || '',
+            location: eventInfo.location || ''
+          };
+          
+          console.log("Evento processado localmente:", formattedPost.event);
+        }
       } catch (e) {
         console.error('Erro ao processar dados do evento na resposta:', e);
       }
+    } else if (eventData) {
+      // Se o backend não retornou dados do evento, mas enviamos um, use os dados enviados
+      formattedPost.event = eventData;
+      console.log("Usando dados de evento enviados:", formattedPost.event);
     }
+    
+    console.log("Post formatado final:", {
+      id: formattedPost.id,
+      content: formattedPost.content,
+      hasEvent: !!formattedPost.event,
+      eventTitle: formattedPost.event?.title || 'N/A'
+    });
     
     return formattedPost;
   } catch (error) {
@@ -1460,18 +1492,18 @@ const deletePost = async (postId: string) => {
 					  <p className="mb-4 whitespace-pre-line">{post.content}</p>
 					  
 					  {/* Exibição de informações do evento */}
-					  {post.event && (
-						<div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
-						  <div className="flex items-center">
-							<Calendar className="h-5 w-5 text-[#e60909] mr-2" />
-							<h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
-						  </div>
-						  <div className="text-sm ml-7 space-y-1 mt-1">
-							<p className="text-gray-600">{post.event.date}</p>
-							<p className="text-gray-600">{post.event.location}</p>
-						  </div>
-						</div>
-					  )}
+					    {post.event && post.event.title && (
+							<div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
+							  <div className="flex items-center">
+								<Calendar className="h-5 w-5 text-[#e60909] mr-2" />
+								<h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
+							  </div>
+							  <div className="text-sm ml-7 space-y-1 mt-1">
+								<p className="text-gray-600">{post.event.date}</p>
+								<p className="text-gray-600">{post.event.location}</p>
+							  </div>
+							</div>
+						  )}
 					  
 					  {/* Exibição de imagens */}
 					  {post.images && post.images.length > 0 && (

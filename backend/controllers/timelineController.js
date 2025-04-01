@@ -50,8 +50,13 @@ const getPosts = async (req, res) => {
         postObj.images = [...postObj.attachments];
       }
       
-      // Processar dados do evento (se existir)
+   // *** IMPORTANTE: Processar dados do evento (se existir) ***
       if (postObj.eventData) {
+        console.log(`Post ${postObj._id} contém dados de evento:`, {
+          tipo: typeof postObj.eventData,
+          valor: postObj.eventData
+        });
+        
         // Certificar-se de que eventData está no formato correto
         let eventInfo = postObj.eventData;
         
@@ -59,8 +64,11 @@ const getPosts = async (req, res) => {
         if (typeof eventInfo === 'string') {
           try {
             eventInfo = JSON.parse(eventInfo);
+            console.log(`Post ${postObj._id} - eventData parseado de string:`, eventInfo);
           } catch (e) {
-            console.error('Erro ao processar eventData como JSON:', e);
+            console.error(`Post ${postObj._id} - Erro ao processar eventData como JSON:`, e);
+            // Caso falhe o parse, mantém como objeto vazio
+            eventInfo = {};
           }
         }
         
