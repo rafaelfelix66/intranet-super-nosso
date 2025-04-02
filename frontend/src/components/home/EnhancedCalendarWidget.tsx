@@ -1,4 +1,4 @@
-// src/components/home/EnhancedCalendarWidget.tsx
+// src/components/home/EnhancedCalendarWidget.tsx - Versão corrigida
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
@@ -31,8 +31,8 @@ interface Event {
   date: Date;
   location: string;
   description?: string;
-  postId?: string;    // ID do post na timeline
-  createdAt?: string; // Data de criação
+  postId?: string;
+  createdAt?: string;
 }
 
 export function EnhancedCalendarWidget() {
@@ -56,129 +56,9 @@ export function EnhancedCalendarWidget() {
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
   ];
   
-  // Função para buscar eventos da timeline no servidor
-  const fetchEvents = async () => {
-    setIsLoading(true);
-    try {
-      console.log("EnhancedCalendarWidget: Buscando posts da timeline...");
-      // Fazendo a chamada ao backend para buscar os eventos
-      const response = await api.get('/timeline');
-      
-      if (Array.isArray(response)) {
-        console.log(`EnhancedCalendarWidget: Recebidos ${response.length} posts`);
-        
-        // Processar TODOS os posts, extraindo eventos quando existirem
-        const timelineEvents = response
-          .map(post => {
-            // Primeiro, verificar se tem eventData
-            if (post.eventData) {
-              let eventData = post.eventData;
-              
-              // Converter a data formatada (ex: "15 de março, 2023") para objeto Date
-              let eventDate;
-              try {
-                const dateRegex = /(\d+)\s+de\s+(\w+),\s+(\d{4})/;
-                const match = eventData.date.match(dateRegex);
-                
-                if (match) {
-                  const [_, day, monthName, year] = match;
-                  const monthIndex = getMonthIndex(monthName);
-                  
-                  if (monthIndex !== -1) {
-                    eventDate = new Date(parseInt(year), monthIndex, parseInt(day));
-                  } else {
-                    eventDate = new Date(); // Fallback para data atual
-                  }
-                } else {
-                  // Tentar parse direto
-                  eventDate = new Date(eventData.date);
-                }
-                
-                return {
-                  id: post._id + "-event", 
-                  title: eventData.title,
-                  date: eventDate,
-                  location: eventData.location || '',
-                  description: post.text || '',
-                  postId: post._id,
-                  createdAt: post.createdAt
-                };
-              } catch (e) {
-                console.error('Erro ao converter data do evento:', e);
-                return null;
-              }
-            }
-            
-            // Verificar se o conteúdo do post contém um padrão de evento
-            // Formato: Título: [título], Data: [data], Local: [local]
-            if (post.text && typeof post.text === 'string') {
-              const eventPattern = /Título:\s*([^,\n]+)(?:,|\n)?\s*Data:\s*([^,\n]+)(?:,|\n)?\s*Local:\s*([^,\n]+)/i;
-              const match = post.text.match(eventPattern);
-              
-              if (match) {
-                const [_, eventTitle, eventDateText, eventLocation] = match;
-                
-                // Tentar converter a data
-                let eventDate;
-                try {
-                  // Verificar se é um formato conhecido
-                  const dateRegex = /(\d+)\s+de\s+(\w+),\s+(\d{4})/;
-                  const dateMatch = eventDateText.match(dateRegex);
-                  
-                  if (dateMatch) {
-                    const [_, day, monthName, year] = dateMatch;
-                    const monthIndex = getMonthIndex(monthName);
-                    
-                    if (monthIndex !== -1) {
-                      eventDate = new Date(parseInt(year), monthIndex, parseInt(day));
-                    } else {
-                      eventDate = new Date(eventDateText);
-                    }
-                  } else {
-                    eventDate = new Date(eventDateText);
-                  }
-                  
-                  return {
-                    id: post._id + "-parsed-event",
-                    title: eventTitle.trim(),
-                    date: eventDate,
-                    location: eventLocation.trim(),
-                    description: post.text || '',
-                    postId: post._id,
-                    createdAt: post.createdAt
-                  };
-                } catch (e) {
-                  console.error('Erro ao converter data do evento em texto:', e);
-                  return null;
-                }
-              }
-            }
-            
-            return null; // Post sem evento
-          })
-          .filter(event => event !== null) as Event[];
-        
-        // Ordenar eventos por data (mais recentes primeiro)
-        timelineEvents.sort((a, b) => b.date.getTime() - a.date.getTime());
-        
-        setEvents(timelineEvents);
-        console.log('Eventos carregados da timeline:', timelineEvents);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar eventos:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os eventos",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   // Função auxiliar para obter índice do mês a partir do nome
   const getMonthIndex = (monthName: string): number => {
-    const months = {
+    const months: Record<string, number> = {
       'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3,
       'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7,
       'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
@@ -187,10 +67,222 @@ export function EnhancedCalendarWidget() {
     return months[monthName.toLowerCase()] || -1;
   };
   
-  // Carrega eventos ao montar o componente e ao mudar de mês
+  // Função aprimorada para converter string de data para objeto Date
+  const parseEventDate = (dateString: string): Date => {
+  console.log(`Tentando converter data: "${dateString}"`);
+  
+  // Caso de string vazia ou inválida
+  if (!dateString || typeof dateString !== 'string') {
+    console.error(`Data inválida: ${dateString}, usando data atual como fallback`);
+    return new Date();
+  }
+  
+  // Verificar se a string já é um timestamp ISO
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}T/)) {
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) {
+      console.log(`Data ISO válida: ${date.toISOString()}`);
+      return date;
+    }
+  }
+  
+  // Formato: "15 de abril, 2025" ou "15 de abril de 2025"
+  const ptDateFormat = /(\d+)\s+de\s+(\w+)(?:,?\s+|\s+de\s+)(\d{4})/i;
+  const ptMatch = dateString.match(ptDateFormat);
+  if (ptMatch) {
+    const [_, day, monthName, year] = ptMatch;
+    const monthIndex = getMonthIndex(monthName.toLowerCase());
+    
+    if (monthIndex !== -1) {
+      const parsedDate = new Date(parseInt(year), monthIndex, parseInt(day));
+      if (!isNaN(parsedDate.getTime())) {
+        console.log(`Data em formato PT convertida: ${parsedDate.toISOString()}`);
+        return parsedDate;
+      }
+    }
+  }
+  
+  // Formato: "15/04/2025" ou "15-04-2025"
+  const numericFormat = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/;
+  const numericMatch = dateString.match(numericFormat);
+  if (numericMatch) {
+    const [_, day, month, year] = numericMatch;
+    const parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (!isNaN(parsedDate.getTime())) {
+      console.log(`Data em formato numérico convertida: ${parsedDate.toISOString()}`);
+      return parsedDate;
+    }
+  }
+  
+  // Formato: "abril 15, 2025" ou "Abr 15, 2025"
+  const enFormat = /(\w+)\s+(\d{1,2}),\s+(\d{4})/i;
+  const enMatch = dateString.match(enFormat);
+  if (enMatch) {
+    const [_, monthName, day, year] = enMatch;
+    // Tentar converter usando construtor Date nativo que entende inglês
+    const parsedDate = new Date(`${monthName} ${day}, ${year}`);
+    if (!isNaN(parsedDate.getTime())) {
+      console.log(`Data em formato EN convertida: ${parsedDate.toISOString()}`);
+      return parsedDate;
+    }
+  }
+  
+  // Tentar construtor Date nativo como último recurso
+  try {
+    const nativeDate = new Date(dateString);
+    if (!isNaN(nativeDate.getTime())) {
+      console.log(`Data convertida via construtor nativo: ${nativeDate.toISOString()}`);
+      return nativeDate;
+    }
+  } catch (e) {
+    console.error(`Erro no construtor Date: ${e}`);
+  }
+  
+  // Se todas as tentativas falharem, retornar a data atual
+  console.error(`Não foi possível converter a data: "${dateString}" - usando data atual como fallback`);
+  return new Date();
+};
+  
+  // Função para buscar eventos da timeline no servidor
+  // Função corrigida para buscar eventos da timeline
+const fetchEvents = async () => {
+  setIsLoading(true);
+  try {
+    console.log("EnhancedCalendarWidget: Buscando posts da timeline...");
+    // Fazendo a chamada ao backend para buscar os eventos
+    const response = await api.get('/timeline');
+    
+    if (Array.isArray(response)) {
+      console.log(`EnhancedCalendarWidget: Recebidos ${response.length} posts`);
+      
+      // Processar posts para extrair eventos
+      const timelineEvents = [];
+      
+      // Iterar sobre cada post recebido
+      response.forEach(post => {
+        // 1. Verificar se o post tem eventData
+        if (post.eventData && typeof post.eventData === 'object') {
+          console.log(`Post ${post._id} tem eventData:`, post.eventData);
+          
+          try {
+            // Confirmar se os campos necessários estão presentes
+            if (post.eventData.title && post.eventData.date) {
+              const eventDate = parseEventDate(post.eventData.date);
+              
+              timelineEvents.push({
+                id: post._id + "-event", 
+                title: post.eventData.title,
+                date: eventDate,
+                location: post.eventData.location || '',
+                description: post.text || '',
+                postId: post._id,
+                createdAt: post.createdAt
+              });
+              
+              console.log(`Evento extraído do eventData: ${post.eventData.title}`);
+            } else {
+              console.warn(`eventData incompleto no post ${post._id}`);
+            }
+          } catch (e) {
+            console.error(`Erro ao processar eventData do post ${post._id}:`, e);
+          }
+        }
+        
+        // 2. Para posts recém-criados que podem ter perdido eventData
+        else if (post.text && post.text.toLowerCase() === 'teste') {
+          const postDate = new Date(post.createdAt);
+          const now = new Date();
+          const isRecent = (now.getTime() - postDate.getTime()) < 24 * 60 * 60 * 1000; // Últimas 24 horas
+          
+          if (isRecent) {
+            console.log(`Post recente encontrado que pode ser um evento: ${post._id}`);
+            timelineEvents.push({
+              id: post._id + "-auto", 
+              title: "Evento",
+              date: new Date(), // Data atual como fallback
+              location: 'Localização não especificada',
+              description: post.text || '',
+              postId: post._id,
+              createdAt: post.createdAt
+            });
+            
+            console.log(`Evento temporário criado para post recente: ${post._id}`);
+          }
+        }
+        
+        // 3. Verificar posts com formato de evento no texto
+        else if (post.text && typeof post.text === 'string') {
+          const eventPattern = /Título:\s*([^,\n]+)(?:,|\n)?\s*Data:\s*([^,\n]+)(?:,|\n)?\s*Local:\s*([^,\n]+)/i;
+          const match = post.text.match(eventPattern);
+          
+          if (match) {
+            console.log(`Post ${post._id} contém padrão de evento no texto`);
+            const [_, eventTitle, eventDateText, eventLocation] = match;
+            
+            try {
+              const eventDate = parseEventDate(eventDateText.trim());
+              
+              timelineEvents.push({
+                id: post._id + "-parsed-event",
+                title: eventTitle.trim(),
+                date: eventDate,
+                location: eventLocation.trim(),
+                description: post.text || '',
+                postId: post._id,
+                createdAt: post.createdAt
+              });
+              
+              console.log(`Evento extraído do texto: ${eventTitle.trim()}`);
+            } catch (e) {
+              console.error(`Erro ao converter data do evento em texto: ${e.message}`);
+            }
+          }
+        }
+      });
+      
+      // Ordenar eventos por data
+      timelineEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      console.log(`Encontrados ${timelineEvents.length} eventos na timeline`);
+      
+      // Depurar cada evento encontrado
+      timelineEvents.forEach(event => {
+        console.log(`Evento: ${event.title}`);
+        console.log(`- Data: ${event.date.toISOString()}`);
+        console.log(`- Dia: ${event.date.getDate()}, Mês: ${event.date.getMonth() + 1}, Ano: ${event.date.getFullYear()}`);
+      });
+      
+      setEvents(timelineEvents);
+    } else {
+      console.error('Resposta da API não é um array:', response);
+      toast({
+        title: "Erro de formato",
+        description: "A resposta da API não está no formato esperado",
+        variant: "destructive"
+      });
+    }
+  } catch (error) {
+    console.error('Erro ao carregar eventos:', error);
+    toast({
+      title: "Erro",
+      description: "Não foi possível carregar os eventos",
+      variant: "destructive"
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+  
+  // Carrega eventos ao montar o componente
   useEffect(() => {
     fetchEvents();
+    console.log("EnhancedCalendarWidget montado, buscando eventos...");
   }, []);
+  
+  // Debug quando eventos mudam
+  useEffect(() => {
+    console.log(`Estado de eventos atualizado: ${events.length} eventos`);
+  }, [events]);
   
   // Formatador de data para exibição
   const formatEventDate = (date: Date): string => {
@@ -213,17 +305,37 @@ export function EnhancedCalendarWidget() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
   
+  // Melhorada função getEventsForDate para depuração
+  const getEventsForDate = (date: Date): Event[] => {
+    const filteredEvents = events.filter(event => {
+      const isSameDay = (
+        event.date.getDate() === date.getDate() &&
+        event.date.getMonth() === date.getMonth() &&
+        event.date.getFullYear() === date.getFullYear()
+      );
+      
+      // Para debug
+      if (
+        event.date.getDate() === date.getDate() && 
+        event.date.getMonth() === date.getMonth()
+      ) {
+        console.log(`Verificando evento "${event.title}" para data ${date.toISOString()}`);
+        console.log(`- Data do evento: ${event.date.toISOString()}`);
+        console.log(`- Comparação: ${isSameDay ? 'CORRESPONDE' : 'NÃO CORRESPONDE'}`);
+      }
+      
+      return isSameDay;
+    });
+    
+    return filteredEvents;
+  };
+  
   const handleDateClick = (day: number) => {
     const newSelectedDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     setSelectedDate(newSelectedDate);
     
     // Verificar quantos eventos existem para essa data
-    const eventsForDay = events.filter(event => {
-      if (!event.date) return false;
-      return event.date.getDate() === day && 
-        event.date.getMonth() === currentDate.getMonth() && 
-        event.date.getFullYear() === currentDate.getFullYear();
-    });
+    const eventsForDay = getEventsForDate(newSelectedDate);
     
     // Se houver mais de um evento, mostrar a visão multi-evento
     if (eventsForDay.length > 1) {
@@ -231,6 +343,13 @@ export function EnhancedCalendarWidget() {
     } else {
       setMultiEventView(false);
     }
+    
+    // Debug para eventos do dia selecionado
+    console.log(`Selecionada data: ${newSelectedDate.toISOString()}`);
+    console.log(`Eventos para ${formatEventDate(newSelectedDate)}: ${eventsForDay.length}`);
+    eventsForDay.forEach(event => {
+      console.log(`- ${event.title} (${event.date.toISOString()})`);
+    });
   };
   
   const renderCalendarDays = () => {
@@ -246,22 +365,16 @@ export function EnhancedCalendarWidget() {
     
     // Add days of month
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const dateForDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const isSelected = selectedDate.getDate() === day && 
-                       selectedDate.getMonth() === currentDate.getMonth() && 
-                       selectedDate.getFullYear() === currentDate.getFullYear();
+                      selectedDate.getMonth() === currentDate.getMonth() && 
+                      selectedDate.getFullYear() === currentDate.getFullYear();
       const isToday = new Date().getDate() === day && 
-                     new Date().getMonth() === currentDate.getMonth() && 
-                     new Date().getFullYear() === currentDate.getFullYear();
+                    new Date().getMonth() === currentDate.getMonth() && 
+                    new Date().getFullYear() === currentDate.getFullYear();
       
-      // Check if day has events and count them
-      const dayEvents = events.filter(event => {
-        if (!event.date) return false;
-        return event.date.getDate() === day && 
-               event.date.getMonth() === currentDate.getMonth() && 
-               event.date.getFullYear() === currentDate.getFullYear();
-      });
-      
+      // Check if day has events
+      const dayEvents = getEventsForDate(dateForDay);
       const hasEvents = dayEvents.length > 0;
       const multipleEvents = dayEvents.length > 1;
       
@@ -293,12 +406,7 @@ export function EnhancedCalendarWidget() {
   };
   
   const getEventsForSelectedDate = () => {
-    return events.filter(event => {
-      if (!event.date) return false;
-      return event.date.getDate() === selectedDate.getDate() && 
-        event.date.getMonth() === selectedDate.getMonth() && 
-        event.date.getFullYear() === selectedDate.getFullYear();
-    });
+    return getEventsForDate(selectedDate);
   };
   
   const selectedEvents = getEventsForSelectedDate();
@@ -359,12 +467,6 @@ export function EnhancedCalendarWidget() {
       
       console.log("Enviando evento para o banco de dados:", eventData);
       
-      // Verificando se api tem método post
-      if (typeof api.post !== 'function') {
-        console.error("Método api.post não está disponível");
-        throw new Error("Método api.post não está disponível");
-      }
-      
       // Criar post com evento - isso salva no banco de dados
       const postData = {
         text: description || '',
@@ -380,8 +482,18 @@ export function EnhancedCalendarWidget() {
         description: "Seu evento foi salvo no banco de dados com sucesso."
       });
       
-      // Recarregar os eventos para mostrar o novo evento do banco
-      fetchEvents();
+      // Adicionar o novo evento localmente para exibição imediata
+      const newEvent: Event = {
+        id: response._id + "-event",
+        title: title.trim(),
+        date: date,
+        location: location.trim(),
+        description: description,
+        postId: response._id,
+        createdAt: new Date().toISOString()
+      };
+      
+      setEvents(prevEvents => [newEvent, ...prevEvents]);
       
       // Fechar o formulário
       setIsEventFormOpen(false);

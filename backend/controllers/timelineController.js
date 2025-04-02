@@ -1,4 +1,4 @@
-// controllers/timelineController.js
+// controllers/timelineController.js (CORREÇÃO COMPLETA)
 const { Post, User } = require('../models');
 const path = require('path');
 const fs = require('fs');
@@ -50,7 +50,7 @@ const getPosts = async (req, res) => {
         postObj.images = [...postObj.attachments];
       }
       
-   // *** IMPORTANTE: Processar dados do evento (se existir) ***
+      // CORREÇÃO IMPORTANTE: Processar propriamente o eventData para garantir que ele chegue ao frontend
       if (postObj.eventData) {
         console.log(`Post ${postObj._id} contém dados de evento:`, {
           tipo: typeof postObj.eventData,
@@ -65,21 +65,34 @@ const getPosts = async (req, res) => {
           try {
             eventInfo = JSON.parse(eventInfo);
             console.log(`Post ${postObj._id} - eventData parseado de string:`, eventInfo);
+            // Atualizar o eventData para o objeto parseado
+            postObj.eventData = eventInfo;
           } catch (e) {
             console.error(`Post ${postObj._id} - Erro ao processar eventData como JSON:`, e);
-            // Caso falhe o parse, mantém como objeto vazio
-            eventInfo = {};
+            // Caso falhe o parse, mantém como objeto vazio mas não null
+            postObj.eventData = {};
           }
         }
         
-        // Garantir que os dados do evento são expostos no formato esperado pelo frontend
+        // SOLUÇÃO CRÍTICA: Garantir que eventData nunca seja null e tenha as propriedades esperadas
+        if (!postObj.eventData || typeof postObj.eventData !== 'object') {
+          postObj.eventData = {};
+        }
+        
+        // Garantir que as propriedades essenciais existam
+        if (!postObj.eventData.title) postObj.eventData.title = '';
+        if (!postObj.eventData.date) postObj.eventData.date = '';
+        if (!postObj.eventData.location) postObj.eventData.location = '';
+
+        // MANTER COMPATIBILIDADE: Para posts que esperam o campo 'event', duplique os dados
+        // Isso garante que tanto o novo formato (eventData) quanto o velho (event) funcionem
         postObj.event = {
-          title: eventInfo.title || '',
-          date: eventInfo.date || '',
-          location: eventInfo.location || ''
+          title: postObj.eventData.title,
+          date: postObj.eventData.date,
+          location: postObj.eventData.location
         };
         
-        console.log(`Post ${postObj._id} contém evento:`, postObj.event);
+        console.log(`Post ${postObj._id} processado com evento:`, postObj.eventData);
       }
       
       // Log detalhado para depuração
@@ -88,6 +101,7 @@ const getPosts = async (req, res) => {
         text: postObj.text ? postObj.text.substr(0, 20) + (postObj.text.length > 20 ? '...' : '') : '',
         attachmentsCount: postObj.attachments ? postObj.attachments.length : 0,
         imagesCount: postObj.images ? postObj.images.length : 0,
+        hasEventData: !!postObj.eventData,
         hasEvent: !!postObj.event
       });
       
@@ -156,9 +170,16 @@ const createPost = async (req, res) => {
         }
         
         // Validar se os campos obrigatórios estão presentes
-        if (!parsedEventData.title || !parsedEventData.date || !parsedEventData.location) {
+        if (!parsedEventData.title || !parsedEventData.date) {
           console.warn('Dados de evento incompletos:', parsedEventData);
         }
+        
+        // Garantir que location existe
+        if (!parsedEventData.location) {
+          parsedEventData.location = '';
+        }
+        
+        console.log('Dados de evento validados:', parsedEventData);
       } catch (error) {
         console.error('Erro ao analisar dados do evento:', error, 'Valor recebido:', eventData);
         return res.status(400).json({ mensagem: 'Formato inválido para dados do evento', erro: error.message });
@@ -169,12 +190,14 @@ const createPost = async (req, res) => {
     const normalizedAttachments = attachments.map(att => att.path);
     
     const newPost = new Post({
-      text,
+      text: text || '',
       user: req.usuario.id,
       attachments: normalizedAttachments,
       eventData: parsedEventData,
       images: normalizedAttachments
     });
+    
+    console.log('Salvando post com eventData:', newPost.eventData);
     
     const post = await newPost.save();
     console.log('Post salvo com sucesso:', {
@@ -182,14 +205,26 @@ const createPost = async (req, res) => {
       text: post.text ? post.text.substring(0, 30) : '',
       attachmentsLength: post.attachments ? post.attachments.length : 0,
       imagesLength: post.images ? post.images.length : 0,
-      eventData: post.eventData ? 'presente' : 'ausente'
+      eventData: post.eventData ? JSON.stringify(post.eventData) : 'ausente'
     });
     
     // Carregar informações do usuário para a resposta
     const populatedPost = await Post.findById(post._id)
       .populate('user', ['nome']);
+    
+    // IMPORTANTE: Garantir que eventData esteja presente na resposta
+    const responsePost = populatedPost.toObject();
+    
+    // Se o post tem eventData, garantir que também tenha 'event' para compatibilidade
+    if (responsePost.eventData) {
+      responsePost.event = {
+        title: responsePost.eventData.title || '',
+        date: responsePost.eventData.date || '',
+        location: responsePost.eventData.location || ''
+      };
+    }
       
-    res.status(201).json(populatedPost);
+    res.status(201).json(responsePost);
   } catch (err) {
     console.error('Erro ao criar post:', err);
     res.status(500).json({ mensagem: 'Erro ao criar post', erro: err.message });
@@ -256,7 +291,7 @@ const likePost = async (req, res) => {
   }
 };
 
-// Função para excluir uma publicação - VERSÃO FINAL CORRIGIDA
+// Função para excluir uma publicação
 const deletePost = async (req, res) => {
   try {
     console.log('Tentando excluir post. ID:', req.params.id, 'Usuário:', req.usuario.id);

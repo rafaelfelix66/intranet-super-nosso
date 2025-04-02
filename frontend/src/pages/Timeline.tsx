@@ -432,7 +432,8 @@ const fetchPosts = async () => {
           hasAttachments: !!post.attachments && post.attachments.length > 0,
           attachments: post.attachments,
           images: post.images,
-		  event: post.event 
+          event: post.event,
+          eventData: post.eventData
         });
         
         const formattedPost = {
@@ -458,12 +459,26 @@ const fetchPosts = async () => {
             like === userId
           ) || false,
           images: [],
-		  event: post.event || null
+          event: null // Inicializar como null
         };
         
-		 // Verificar se o evento está completo
+        // CORREÇÃO: Verificar tanto eventData quanto event
+        // Priorizar eventData se ambos existirem
+        if (post.eventData && typeof post.eventData === 'object') {
+          console.log(`Post ${post._id} tem eventData:`, post.eventData);
+          formattedPost.event = {
+            title: post.eventData.title || '',
+            date: post.eventData.date || '',
+            location: post.eventData.location || ''
+          };
+        } else if (post.event && typeof post.event === 'object') {
+          console.log(`Post ${post._id} tem event:`, post.event);
+          formattedPost.event = post.event;
+        }
+        
+        // Verificar se o evento está completo
         if (formattedPost.event) {
-          console.log(`Post ${post._id} tem evento:`, formattedPost.event);
+          console.log(`Post ${post._id} tem evento processado:`, formattedPost.event);
         }
         
         // Processar imagens/anexos - simplificado para usar apenas attachments
@@ -1156,26 +1171,6 @@ const deletePost = async (postId: string) => {
           </div>
           
           <div className="flex space-x-2">
-            <Button 
-              variant="outline"
-              className="flex items-center"
-              onClick={() => setShowDiagnosticTools(!showDiagnosticTools)}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              {showDiagnosticTools ? "Ocultar Ferramentas" : "Ferramentas de Diagnóstico"}
-            </Button>
-            
-            {showDiagnosticTools && (
-              <Button 
-                variant="outline"
-                className="flex items-center"
-                onClick={diagnosticAllImages}
-              >
-                <FileSearch className="mr-2 h-4 w-4" />
-                Verificar Todas as Imagens
-              </Button>
-            )}
-            
             <Dialog open={newPostDialog} onOpenChange={setNewPostDialog}>
               <DialogTrigger asChild>
                 <Button className="bg-[#e60909] hover:bg-[#e60909]/90 text-white">

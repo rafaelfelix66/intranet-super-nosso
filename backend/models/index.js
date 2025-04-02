@@ -1,4 +1,4 @@
-// models/index.js
+// models/index.js (CORRIGIDO)
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -27,6 +27,7 @@ UserSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// CORRIGIDO: Schema do Post agora inclui eventData
 const PostSchema = new mongoose.Schema({
   text: String,
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -34,6 +35,11 @@ const PostSchema = new mongoose.Schema({
     type: String, // Caminho do arquivo
     contentType: String // Tipo MIME
   }],
+  // ADICIONADO: Campo eventData para armazenar informações de eventos
+  eventData: {
+    type: mongoose.Schema.Types.Mixed, // Para armazenar dados de evento (título, data, local)
+    default: null
+  },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   comments: [{
     text: String,
@@ -108,7 +114,7 @@ const FolderSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Novo schema para o Banner
+// Schema para Banner
 const BannerSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -147,9 +153,9 @@ module.exports = {
   User: mongoose.model('User', UserSchema),
   Post: mongoose.model('Post', PostSchema),
   Article: mongoose.model('Article', ArticleSchema),
-  Chat: mongoose.model('Chat', ChatSchema), // Substitui ChatRoom
+  Chat: mongoose.model('Chat', ChatSchema),
   Message: mongoose.model('Message', MessageSchema),
   File: mongoose.model('File', FileSchema),
   Folder: mongoose.model('Folder', FolderSchema),
-  Banner: mongoose.model('Banner', BannerSchema) // Adicionado o modelo Banner
+  Banner: mongoose.model('Banner', BannerSchema)
 };
