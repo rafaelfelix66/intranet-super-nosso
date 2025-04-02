@@ -1,4 +1,4 @@
-
+// src/App.tsx
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,7 +23,14 @@ import BannerAdmin from "./pages/BannerAdmin";
 // Update Tailwind CSS variables to include the new red color
 import { useEffect } from "react";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => {
   // Update the CSS variables for the supernosso-red color
@@ -42,6 +49,23 @@ const App = () => {
       .message-received {
         color: #333 !important;
         font-weight: 500;
+      }
+      
+      /* Estilos adicionais para o calendário e atividades */
+      .calendar-day-with-event:after {
+        content: '';
+        position: absolute;
+        bottom: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background-color: var(--supernosso-red);
+      }
+      
+      .activity-item-highlight:hover {
+        background-color: rgba(230, 9, 9, 0.05);
       }
     `;
     document.head.appendChild(style);
@@ -70,10 +94,10 @@ const App = () => {
                 <Route path="/timeline" element={<Timeline />} />
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/base-conhecimento" element={<KnowledgeBase />} />
-				<Route path="/base-conhecimento/:id" element={<ArticlePage />} />
-				<Route path="/base-conhecimento/novo" element={<NewArticlePage />} />
+                <Route path="/base-conhecimento/:id" element={<ArticlePage />} />
+                <Route path="/base-conhecimento/novo" element={<NewArticlePage />} />
                 <Route path="/configuracoes" element={<Settings />} />
-				<Route path="/admin/banners" element={<BannerAdmin />} />
+                <Route path="/admin/banners" element={<BannerAdmin />} />
               </Route>
               
               {/* Catch-all route */}
