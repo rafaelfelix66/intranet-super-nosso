@@ -53,6 +53,9 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/components/ui/use-toast";
 import { api } from '@/services/api';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { OwnershipGuard } from '@/components/auth/OwnershipGuard';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Interfaces
 interface PostComment {
@@ -678,6 +681,7 @@ const Timeline = () => {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+  const { currentUser, hasPermission } = useAuth();
 
   const diagnosticAllImages = async () => {
     if (posts.length === 0) {
@@ -1171,236 +1175,242 @@ const deletePost = async (postId: string) => {
           </div>
           
           <div className="flex space-x-2">
-            <Dialog open={newPostDialog} onOpenChange={setNewPostDialog}>
-              <DialogTrigger asChild>
-                <Button className="bg-[#e60909] hover:bg-[#e60909]/90 text-white">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Publicação
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>Criar Nova Publicação</DialogTitle>
-                  <DialogDescription>
-                    Compartilhe novidades, eventos ou atualizações com a equipe.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="flex items-start space-x-3">
-                    <Avatar>
-                      <AvatarFallback className="bg-[#e60909] text-white">
-                        VC
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium">Você</p>
-                      <Textarea 
-                        placeholder="O que você deseja compartilhar?" 
-                        className="mt-2 focus-visible:ring-[#e60909] resize-none"
-                        rows={4}
-                        value={newPostContent}
-                        onChange={(e) => setNewPostContent(e.target.value)}
-                      />
+            {/* Botão para criar nova publicação - apenas para quem tem permissão */}
+            <PermissionGuard 
+              requiredPermission="timeline:create"
+              fallback={<p className="text-sm text-muted-foreground">Você não tem permissão para criar publicações</p>}
+            >
+              <Dialog open={newPostDialog} onOpenChange={setNewPostDialog}>
+                <DialogTrigger asChild>
+                  <Button className="bg-[#e60909] hover:bg-[#e60909]/90 text-white">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nova Publicação
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>Criar Nova Publicação</DialogTitle>
+                    <DialogDescription>
+                      Compartilhe novidades, eventos ou atualizações com a equipe.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="flex items-start space-x-3">
+                      <Avatar>
+                        <AvatarFallback className="bg-[#e60909] text-white">
+                          VC
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">Você</p>
+                        <Textarea 
+                          placeholder="O que você deseja compartilhar?" 
+                          className="mt-2 focus-visible:ring-[#e60909] resize-none"
+                          rows={4}
+                          value={newPostContent}
+                          onChange={(e) => setNewPostContent(e.target.value)}
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  {previewImages.length > 0 && (
-                    <div className={cn(
-                      "grid gap-2 mt-4", 
-                      previewImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
-                    )}>
-                      {previewImages.map((img, idx) => (
-                        <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                          <ImageRenderer 
-                            src={img} 
-                            alt={`Imagem ${idx + 1}`} 
-                            className="object-cover w-full h-full"
-							enableModal={true}
-                          />
+                    {previewImages.length > 0 && (
+                      <div className={cn(
+                        "grid gap-2 mt-4", 
+                        previewImages.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                      )}>
+                        {previewImages.map((img, idx) => (
+                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+                            <ImageRenderer 
+                              src={img} 
+                              alt={`Imagem ${idx + 1}`} 
+                              className="object-cover w-full h-full"
+                              enableModal={true}
+                            />
+                            <Button 
+                              variant="destructive" 
+                              size="icon" 
+                              className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                              onClick={() => removeImage(idx)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+   
+                    {previewVideo && (
+                      <div className="mt-4 rounded-lg overflow-hidden relative">
+                        <VideoRenderer 
+                          src={previewVideo} 
+                          alt="Preview de vídeo" 
+                          className="w-full h-64"
+                          enableModal={false}  // Não precisamos de modal no preview
+                        />
+                        <Button 
+                          variant="destructive" 
+                          size="icon" 
+                          className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                          onClick={removeVideo}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+   
+                    {showEventForm && (
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium text-[#e60909] flex items-center gap-2">
+                            <Calendar className="h-4 w-4" /> 
+                            Detalhes do Evento
+                          </h3>
                           <Button 
-                            variant="destructive" 
+                            variant="ghost" 
                             size="icon" 
-                            className="absolute top-1 right-1 h-6 w-6 rounded-full"
-                            onClick={() => removeImage(idx)}
+                            className="h-6 w-6" 
+                            onClick={toggleEventForm}
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-4 w-4" />
                           </Button>
                         </div>
-                      ))}
-                    </div>
-                  )}
- 
-                  {previewVideo && (
-					  <div className="mt-4 rounded-lg overflow-hidden relative">
-						<VideoRenderer 
-						  src={previewVideo} 
-						  alt="Preview de vídeo" 
-						  className="w-full h-64"
-						  enableModal={false}  // Não precisamos de modal no preview
-						/>
-						<Button 
-						  variant="destructive" 
-						  size="icon" 
-						  className="absolute top-1 right-1 h-6 w-6 rounded-full"
-						  onClick={removeVideo}
-						>
-						  <X className="h-3 w-3" />
-						</Button>
-					  </div>
-					)}
- 
-                  {showEventForm && (
-					  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4 mt-4">
-						<div className="flex items-center justify-between">
-						  <h3 className="font-medium text-[#e60909] flex items-center gap-2">
-							<Calendar className="h-4 w-4" /> 
-							Detalhes do Evento
-						  </h3>
-						  <Button 
-							variant="ghost" 
-							size="icon" 
-							className="h-6 w-6" 
-							onClick={toggleEventForm}
-						  >
-							<X className="h-4 w-4" />
-						  </Button>
-						</div>
-						<div className="space-y-3">
-						  <div className="grid w-full items-center gap-1.5">
-							<Label htmlFor="event-title">Título do evento *</Label>
-							<Input
-							  id="event-title"
-							  placeholder="Ex: Reunião de Equipe"
-							  value={eventTitle}
-							  onChange={(e) => setEventTitle(e.target.value)}
-							  className={!eventTitle.trim() ? "border-red-300 focus-visible:ring-red-500" : ""}
-							/>
-						  </div>
-						  <div className="grid w-full items-center gap-1.5">
-							<Label htmlFor="event-location">Local *</Label>
-							<Input
-							  id="event-location"
-							  placeholder="Ex: Sala de Reuniões, Loja Centro"
-							  value={eventLocation}
-							  onChange={(e) => setEventLocation(e.target.value)}
-							  className={!eventLocation.trim() ? "border-red-300 focus-visible:ring-red-500" : ""}
-							/>
-						  </div>
-						  <div className="grid w-full items-center gap-1.5">
-							<Label>Data *</Label>
-							<Popover>
-							  <PopoverTrigger asChild>
-								<Button
-								  variant="outline"
-								  className={cn(
-									"w-full justify-start text-left font-normal",
-									!eventDate && "text-muted-foreground border-red-300"
-								  )}
-								>
-								  <Calendar className="mr-2 h-4 w-4" />
-								  {eventDate ? (
-									format(eventDate, "PPP", { locale: ptBR })
-								  ) : (
-									<span>Selecione uma data</span>
-								  )}
-								</Button>
-							  </PopoverTrigger>
-							  <PopoverContent className="w-auto p-0">
-								<CalendarComponent
-								  mode="single"
-								  selected={eventDate}
-								  onSelect={setEventDate}
-								  initialFocus
-								/>
-							  </PopoverContent>
-							</Popover>
-							{showEventForm && !eventDate && (
-							  <p className="text-xs text-red-500 mt-1">Data é obrigatória</p>
-							)}
-						  </div>
-						</div>
-					  </div>
-					)}
+                        <div className="space-y-3">
+                          <div className="grid w-full items-center gap-1.5">
+                            <Label htmlFor="event-title">Título do evento *</Label>
+                            <Input
+                              id="event-title"
+                              placeholder="Ex: Reunião de Equipe"
+                              value={eventTitle}
+                              onChange={(e) => setEventTitle(e.target.value)}
+                              className={!eventTitle.trim() ? "border-red-300 focus-visible:ring-red-500" : ""}
+                            />
+                          </div>
+                          <div className="grid w-full items-center gap-1.5">
+                            <Label htmlFor="event-location">Local *</Label>
+                            <Input
+                              id="event-location"
+                              placeholder="Ex: Sala de Reuniões, Loja Centro"
+                              value={eventLocation}
+                              onChange={(e) => setEventLocation(e.target.value)}
+                              className={!eventLocation.trim() ? "border-red-300 focus-visible:ring-red-500" : ""}
+                            />
+                          </div>
+                          <div className="grid w-full items-center gap-1.5">
+                            <Label>Data *</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !eventDate && "text-muted-foreground border-red-300"
+                                  )}
+                                >
+                                  <Calendar className="mr-2 h-4 w-4" />
+                                  {eventDate ? (
+                                    format(eventDate, "PPP", { locale: ptBR })
+                                  ) : (
+                                    <span>Selecione uma data</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={eventDate}
+                                  onSelect={setEventDate}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            {showEventForm && !eventDate && (
+                              <p className="text-xs text-red-500 mt-1">Data é obrigatória</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                  <div className="flex gap-2">
-                    <input 
-                      type="file" 
-                      ref={imageInputRef}
-                      accept="image/*" 
-                      multiple 
-                      className="hidden" 
-                      onChange={handleImageSelect}
-                      disabled={!!selectedVideo || previewImages.length >= 4}
-                    />
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => imageInputRef.current?.click()}
-                      disabled={!!selectedVideo || previewImages.length >= 4}
-                    >
-                      <ImageIcon className="mr-2 h-4 w-4" />
-                      {previewImages.length > 0 ? 
-                        `Fotos (${previewImages.length}/4)` : 
-                        "Adicionar Fotos"
-                      }
-                    </Button>
-                    <input 
-                      type="file" 
-                      ref={videoInputRef}
-                      accept="video/*" 
-                      className="hidden" 
-                      onChange={handleVideoSelect}
-                      disabled={previewImages.length > 0}
-                    />
-                    <Button 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => videoInputRef.current?.click()}
-                      disabled={previewImages.length > 0 || !!selectedVideo}
-                    >
-                      <Film className="mr-2 h-4 w-4" />
-                      {selectedVideo ? "Vídeo Selecionado" : "Adicionar Vídeo"}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className={cn(
-                        "flex-1",
-                        showEventForm && "bg-gray-100 dark:bg-gray-700"
-                      )}
-                      onClick={toggleEventForm}
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {showEventForm ? "Cancelar Evento" : "Criar Evento"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <input 
+                        type="file" 
+                        ref={imageInputRef}
+                        accept="image/*" 
+                        multiple 
+                        className="hidden" 
+                        onChange={handleImageSelect}
+                        disabled={!!selectedVideo || previewImages.length >= 4}
+                      />
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={!!selectedVideo || previewImages.length >= 4}
+                      >
+                        <ImageIcon className="mr-2 h-4 w-4" />
+                        {previewImages.length > 0 ? 
+                          `Fotos (${previewImages.length}/4)` : 
+                          "Adicionar Fotos"
+                        }
+                      </Button>
+                      <input 
+                        type="file" 
+                        ref={videoInputRef}
+                        accept="video/*" 
+                        className="hidden" 
+                        onChange={handleVideoSelect}
+                        disabled={previewImages.length > 0}
+                      />
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => videoInputRef.current?.click()}
+                        disabled={previewImages.length > 0 || !!selectedVideo}
+                      >
+                        <Film className="mr-2 h-4 w-4" />
+                        {selectedVideo ? "Vídeo Selecionado" : "Adicionar Vídeo"}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className={cn(
+                          "flex-1",
+                          showEventForm && "bg-gray-100 dark:bg-gray-700"
+                        )}
+                        onClick={toggleEventForm}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {showEventForm ? "Cancelar Evento" : "Criar Evento"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      setNewPostContent("");
-                      setSelectedImages([]);
-                      setPreviewImages([]);
-                      setSelectedVideo(null);
-                      setPreviewVideo(null);
-                      setShowEventForm(false);
-                      setEventTitle("");
-                      setEventLocation("");
-                      setEventDate(undefined);
-                      setNewPostDialog(false);
-                    }}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button 
-                    className="bg-[#e60909] hover:bg-[#e60909]/90 text-white"
-                    onClick={createNewPost}
-                  >
-                    Publicar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setNewPostContent("");
+                        setSelectedImages([]);
+                        setPreviewImages([]);
+                        setSelectedVideo(null);
+                        setPreviewVideo(null);
+                        setShowEventForm(false);
+                        setEventTitle("");
+                        setEventLocation("");
+                        setEventDate(undefined);
+                        setNewPostDialog(false);
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      className="bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                      onClick={createNewPost}
+                    >
+                      Publicar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </PermissionGuard>
           </div>
         </div>
         
@@ -1451,151 +1461,170 @@ const deletePost = async (postId: string) => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-						  <DropdownMenuItem>Salvar</DropdownMenuItem>
-						  <DropdownMenuItem>Reportar</DropdownMenuItem>
-						  <DropdownMenuItem 
-							className="text-red-500"
-							onClick={(e) => {
-							  e.preventDefault();
-							  deletePost(post.id);
-							}}
-						  >
-							Excluir
-						  </DropdownMenuItem>
-						  {showDiagnosticTools && post.images && post.images.length > 0 && (
-							<DropdownMenuItem onClick={(e) => {
-							  e.preventDefault();
-							  testImageAccess(post.images[0]).then(result => {
-								console.log('Resultado do diagnóstico:', result);
-								toast({
-								  title: result.success ? 'Imagem acessível' : 'Erro no acesso',
-								  description: result.success 
-									? `Status: ${result.status}, URL: ${result.testedUrl}` 
-									: `Erro: ${result.error || 'Desconhecido'}`,
-								  variant: result.success ? 'default' : 'destructive'
-								});
-							  });
-							}}>
-							  Diagnosticar Imagem
-							</DropdownMenuItem>
-						  )}
-						</DropdownMenuContent>
+                          <PermissionGuard requiredPermission="timeline:save">
+                            <DropdownMenuItem>Salvar</DropdownMenuItem>
+                          </PermissionGuard>
+                          <PermissionGuard requiredPermission="timeline:report">
+                            <DropdownMenuItem>Reportar</DropdownMenuItem>
+                          </PermissionGuard>
+                          <OwnershipGuard
+                            resourceOwnerId={post.user.id}
+                            specialPermission="timeline:delete_any"
+                          >
+                            <DropdownMenuItem 
+                              className="text-red-500"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                deletePost(post.id);
+                              }}
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          </OwnershipGuard>
+                          {showDiagnosticTools && post.images && post.images.length > 0 && (
+                            <PermissionGuard requiredPermission="timeline:diagnostics">
+                              <DropdownMenuItem onClick={(e) => {
+                                e.preventDefault();
+                                testImageAccess(post.images[0]).then(result => {
+                                  console.log('Resultado do diagnóstico:', result);
+                                  toast({
+                                    title: result.success ? 'Imagem acessível' : 'Erro no acesso',
+                                    description: result.success 
+                                      ? `Status: ${result.status}, URL: ${result.testedUrl}` 
+                                      : `Erro: ${result.error || 'Desconhecido'}`,
+                                    variant: result.success ? 'default' : 'destructive'
+                                  });
+                                });
+                              }}>
+                                Diagnosticar Imagem
+                              </DropdownMenuItem>
+                            </PermissionGuard>
+                          )}
+                        </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                   </CardHeader>
-					<CardContent className="pb-3">
-					  <p className="mb-4 whitespace-pre-line">{post.content}</p>
-					  
-					  {/* Exibição de informações do evento */}
-					    {post.event && post.event.title && (
-							<div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
-							  <div className="flex items-center">
-								<Calendar className="h-5 w-5 text-[#e60909] mr-2" />
-								<h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
-							  </div>
-							  <div className="text-sm ml-7 space-y-1 mt-1">
-								<p className="text-gray-600">{post.event.date}</p>
-								<p className="text-gray-600">{post.event.location}</p>
-							  </div>
-							</div>
-						  )}
-					  
-					  {/* Exibição de imagens */}
-					  {post.images && post.images.length > 0 && (
-						<div className={cn(
-						  "grid gap-2 mb-4", 
-						  post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
-						)}>
-						  {post.images.map((img, idx) => {
-							const fileType = getFileType(img);
-							
-							return (
-							  <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-								{fileType === 'image' ? (
-								  <ImageRenderer 
-									src={img} 
-									alt={`Anexo ${idx + 1}`} 
-									className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
-									enableModal={true}
-								  />
-								) : fileType === 'video' ? (
-								  <VideoRenderer 
-									src={img} 
-									alt={`Anexo ${idx + 1}`} 
-									className="w-full h-full object-cover"
-									enableModal={true}
-								  />
-								) : (
-								  <div className="flex items-center justify-center w-full h-full bg-gray-100 rounded-lg">
-									<span className="text-gray-500">Anexo não suportado</span>
-								  </div>
-								)}
-								
-								{showDiagnosticTools && (
-								  <Button 
-									variant="outline"
-									size="sm"
-									className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
-									onClick={(e) => {
-									  e.stopPropagation();
-									  testImageAccess(img).then(result => {
-										console.log('Resultado do diagnóstico:', result);
-										toast({
-										  title: result.success ? 'Arquivo acessível' : 'Erro no acesso',
-										  description: result.success 
-											? `Status: ${result.status}, URL: ${result.testedUrl}` 
-											: `Erro: ${result.error || 'Desconhecido'}`,
-										  variant: result.success ? 'default' : 'destructive'
-										});
-									  });
-									}}
-								  >
-									Diagnosticar
-								  </Button>
-								)}
-							  </div>
-							);
-						  })}
-						</div>
-					  )}
-					  
-					  {post.video && (
-						<div className="mb-4 rounded-lg overflow-hidden">
-						  <VideoRenderer 
-							src={post.video} 
-							alt={`Vídeo do post`} 
-							className="w-full h-64 object-cover"
-							enableModal={true}
-						  />
-						</div>
-					  )}
-					  
-					  <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
-						<div>{post.likes} curtidas</div>
-						<div>{post.comments.length} comentários</div>
-					  </div>
-					  
-					  {showDiagnosticTools && post.images && post.images.length > 0 && (
-						<ImageDiagnosticTool post={post} />
-					  )}
-					</CardContent>
+                  <CardContent className="pb-3">
+                    <p className="mb-4 whitespace-pre-line">{post.content}</p>
+                    
+                    {/* Exibição de informações do evento */}
+                    {post.event && post.event.title && (
+                      <div className="bg-[#e60909]/10 rounded-lg p-3 mb-4">
+                        <div className="flex items-center">
+                          <Calendar className="h-5 w-5 text-[#e60909] mr-2" />
+                          <h4 className="font-medium text-[#e60909]">{post.event.title}</h4>
+                        </div>
+                        <div className="text-sm ml-7 space-y-1 mt-1">
+                          <p className="text-gray-600">{post.event.date}</p>
+                          <p className="text-gray-600">{post.event.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Exibição de imagens */}
+                    {post.images && post.images.length > 0 && (
+                      <div className={cn(
+                        "grid gap-2 mb-4", 
+                        post.images.length > 1 ? "grid-cols-2" : "grid-cols-1"
+                      )}>
+                        {post.images.map((img, idx) => {
+                          const fileType = getFileType(img);
+                          
+                          return (
+                            <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
+                              {fileType === 'image' ? (
+                                <ImageRenderer 
+                                  src={img} 
+                                  alt={`Anexo ${idx + 1}`} 
+                                  className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                                  enableModal={true}
+                                />
+                              ) : fileType === 'video' ? (
+                                <VideoRenderer 
+                                  src={img} 
+                                  alt={`Anexo ${idx + 1}`} 
+                                  className="w-full h-full object-cover"
+                                  enableModal={true}
+                                />
+                              ) : (
+                                <div className="flex items-center justify-center w-full h-full bg-gray-100 rounded-lg">
+                                  <span className="text-gray-500">Anexo não suportado</span>
+                                </div>
+                              )}
+                              
+                              {showDiagnosticTools && (
+                                <PermissionGuard requiredPermission="timeline:diagnostics">
+                                  <Button 
+                                    variant="outline"
+                                    size="sm"
+                                    className="absolute bottom-2 right-2 bg-white bg-opacity-80 text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      testImageAccess(img).then(result => {
+                                        console.log('Resultado do diagnóstico:', result);
+                                        toast({
+                                          title: result.success ? 'Arquivo acessível' : 'Erro no acesso',
+                                          description: result.success 
+                                            ? `Status: ${result.status}, URL: ${result.testedUrl}` 
+                                            : `Erro: ${result.error || 'Desconhecido'}`,
+                                          variant: result.success ? 'default' : 'destructive'
+                                        });
+                                      });
+                                    }}
+                                  >
+                                    Diagnosticar
+                                  </Button>
+                                </PermissionGuard>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {post.video && (
+                      <div className="mb-4 rounded-lg overflow-hidden">
+                        <VideoRenderer 
+                          src={post.video} 
+                          alt={`Vídeo do post`} 
+                          className="w-full h-64 object-cover"
+                          enableModal={true}
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t">
+                      <div>{post.likes} curtidas</div>
+                      <div>{post.comments.length} comentários</div>
+                    </div>
+                    
+                    {showDiagnosticTools && post.images && post.images.length > 0 && (
+                      <PermissionGuard requiredPermission="timeline:diagnostics">
+                        <ImageDiagnosticTool post={post} />
+                      </PermissionGuard>
+                    )}
+                  </CardContent>
                   <CardFooter className="flex flex-col space-y-4">
                     <div className="flex justify-around w-full border-y py-1">
-                      <Button 
-                        variant="ghost" 
-                        className={cn(
-                          "flex-1", 
-                          post.liked ? "text-[#e60909]" : ""
-                        )}
-                        onClick={() => handleLike(post.id)}
-                      >
-                        <Heart className={cn("mr-1 h-4 w-4", post.liked ? "fill-[#e60909]" : "")} />
-                        Curtir
-                      </Button>
-                      <Button variant="ghost" className="flex-1">
-                        <MessageCircle className="mr-1 h-4 w-4" />
-                        Comentar
-                      </Button>
+                      <PermissionGuard requiredPermission="timeline:like">
+                        <Button 
+                          variant="ghost" 
+                          className={cn(
+                            "flex-1", 
+                            post.liked ? "text-[#e60909]" : ""
+                          )}
+                          onClick={() => handleLike(post.id)}
+                        >
+                          <Heart className={cn("mr-1 h-4 w-4", post.liked ? "fill-[#e60909]" : "")} />
+                          Curtir
+                        </Button>
+                      </PermissionGuard>
+                      <PermissionGuard requiredPermission="timeline:comment">
+                        <Button variant="ghost" className="flex-1">
+                          <MessageCircle className="mr-1 h-4 w-4" />
+                          Comentar
+                        </Button>
+                      </PermissionGuard>
                     </div>
                     {post.comments.length > 0 && (
                       <div className="space-y-3 w-full">
@@ -1614,44 +1643,56 @@ const deletePost = async (postId: string) => {
                               </div>
                               <div className="flex text-xs text-gray-500 mt-1 ml-2 space-x-3">
                                 <span>{comment.timestamp}</span>
-                                <button className="hover:text-[#e60909]">Curtir</button>
-                                <button className="hover:text-[#e60909]">Responder</button>
+                                <PermissionGuard requiredPermission="timeline:like_comment">
+                                  <button className="hover:text-[#e60909]">Curtir</button>
+                                </PermissionGuard>
+                                <PermissionGuard requiredPermission="timeline:comment">
+                                  <button className="hover:text-[#e60909]">Responder</button>
+                                </PermissionGuard>
+                                <OwnershipGuard
+                                  resourceOwnerId={comment.user.id}
+                                  specialPermission="timeline:delete_any_comment"
+                                >
+                                  <button className="hover:text-red-500">Excluir</button>
+                                </OwnershipGuard>
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
-                    <div className="flex space-x-3 w-full">
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-[#e60909] text-white text-xs">
-                          VC
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 flex">
-                        <Input 
-                          placeholder="Escreva um comentário..." 
-                          className="rounded-r-none focus-visible:ring-0 border-r-0"
-                          value={commentInput[post.id] || ''}
-                          onChange={(e) => setCommentInput({
-                            ...commentInput,
-                            [post.id]: e.target.value
-                          })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleComment(post.id);
-                            }
-                          }}
-                        />
-                        <Button 
-                          className="rounded-l-none bg-[#e60909] hover:bg-[#e60909]/90 text-white"
-                          onClick={() => handleComment(post.id)}
-                          disabled={!commentInput[post.id]?.trim()}
-                        >
-                          Enviar
-                        </Button>
+                    <PermissionGuard requiredPermission="timeline:comment">
+                      <div className="flex space-x-3 w-full">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-[#e60909] text-white text-xs">
+                            VC
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 flex">
+                          <Input 
+                            placeholder="Escreva um comentário..." 
+                            className="rounded-r-none focus-visible:ring-0 border-r-0"
+                            value={commentInput[post.id] || ''}
+                            onChange={(e) => setCommentInput({
+                              ...commentInput,
+                              [post.id]: e.target.value
+                            })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleComment(post.id);
+                              }
+                            }}
+                          />
+                          <Button 
+                            className="rounded-l-none bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                            onClick={() => handleComment(post.id)}
+                            disabled={!commentInput[post.id]?.trim()}
+                          >
+                            Enviar
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    </PermissionGuard>
                   </CardFooter>
                 </Card>
               ))
@@ -1678,13 +1719,15 @@ const deletePost = async (postId: string) => {
                         ? "Ainda não há eventos compartilhados"
                         : "Comece compartilhando algo com sua equipe"}
                 </p>
-                <Button 
-                  className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
-                  onClick={() => setNewPostDialog(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Publicação
-                </Button>
+                <PermissionGuard requiredPermission="timeline:create">
+                  <Button 
+                    className="mt-4 bg-[#e60909] hover:bg-[#e60909]/90 text-white"
+                    onClick={() => setNewPostDialog(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nova Publicação
+                  </Button>
+                </PermissionGuard>
               </div>
             )}
           </TabsContent>

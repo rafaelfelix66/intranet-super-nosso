@@ -4,6 +4,8 @@ const express = require('express');
 const router = express.Router();
 const timelineController = require('../controllers/timelineController');
 const auth = require('../middleware/auth');
+const { hasPermission, isOwnerOrHasPermission } = require('../middleware/permissions');
+const { Post } = require('../models');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -51,7 +53,7 @@ router.get('/', auth, timelineController.getPosts);
 // @route   POST api/timeline
 // @desc    Criar uma publicação
 // @access  Private
-router.post('/', auth, upload.array('attachments', 5), (req, res) => {
+router.post('/', auth, hasPermission('timeline:create'), upload.array('attachments', 5), (req, res) => {
   console.log('Requisição POST /api/timeline recebida:', { 
     body: req.body, 
     files: req.files?.map(f => ({ name: f.originalname, path: f.path, type: f.mimetype })) || [] 
@@ -62,7 +64,7 @@ router.post('/', auth, upload.array('attachments', 5), (req, res) => {
 // @route   POST api/timeline/comment/:id
 // @desc    Adicionar comentário a uma publicação
 // @access  Private
-router.post('/:id/comment', auth, timelineController.addComment);
+router.post('/:id/comment', auth, hasPermission('timeline:comment'), timelineController.addComment);
 
 // @route   PUT api/timeline/like/:id
 // @desc    Curtir uma publicação
@@ -73,7 +75,7 @@ console.log('Rotas da timeline registradas com sucesso');
 // @route   DELETE api/timeline/:id
 // @desc    Excluir uma publicação
 // @access  Private
-router.delete('/:id', auth, timelineController.deletePost);
+router.delete('/:id', auth, isOwnerOrHasPermission(Post, 'id', 'timeline:delete_any'), timelineController.deletePost);
 console.log('Rota de exclusão de post registrada com sucesso');
 // @route   GET api/timeline/check-image/:filename
 // @desc    Verificar se uma imagem específica existe e pode ser acessada

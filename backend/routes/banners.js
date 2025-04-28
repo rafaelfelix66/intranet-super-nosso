@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const bannerController = require('../controllers/bannerController');
 const auth = require('../middleware/auth');
+const { hasPermission } = require('../middleware/permissions');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -47,9 +48,9 @@ const upload = multer({
 router.get('/', bannerController.getActiveBanners);
 
 // Rotas administrativas
-router.get('/all', auth, bannerController.getAllBanners);
-router.post('/', auth, upload.single('image'), bannerController.createBanner);
-router.put('/:id', auth, upload.single('image'), bannerController.updateBanner);
-router.delete('/:id', auth, bannerController.deleteBanner);
+router.get('/all', auth, hasPermission('banners:view'), bannerController.getAllBanners);
+router.post('/', auth, hasPermission('banners:create'), upload.single('image'), bannerController.createBanner);
+router.put('/:id', auth, hasPermission('banners:edit'), upload.single('image'), bannerController.updateBanner);
+router.delete('/:id', auth, hasPermission('banners:delete'), bannerController.deleteBanner);
 
 module.exports = router;

@@ -1,16 +1,18 @@
 // models/index.js (CORRIGIDO)
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const Role = mongoose.model('Role', require('./Role').schema);
 
 const UserSchema = new mongoose.Schema({
   nome: String,
-  email: { type: String, unique: true },
+  email: { type: String, unique: true, required: true },
   password: String,
   cargo: String,
   departamento: String,
   avatar: String,
   dataCriacao: { type: Date, default: Date.now },
   ultimoAcesso: Date,
+  roles: [String],
   permissoes: [String]
 });
 
@@ -27,6 +29,16 @@ UserSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+// Método para verificar permissões
+UserSchema.methods.hasPermission = function(permission) {
+  return this.permissions.includes(permission);
+};
+
+// Método para verificar papel
+UserSchema.methods.hasRole = function(role) {
+  return this.roles.includes(role);
+};
+  
 // CORRIGIDO: Schema do Post agora inclui eventData
 const PostSchema = new mongoose.Schema({
   text: String,
@@ -157,5 +169,6 @@ module.exports = {
   Message: mongoose.model('Message', MessageSchema),
   File: mongoose.model('File', FileSchema),
   Folder: mongoose.model('Folder', FolderSchema),
-  Banner: mongoose.model('Banner', BannerSchema)
+  Banner: mongoose.model('Banner', BannerSchema),
+  Role
 };

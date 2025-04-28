@@ -8,7 +8,7 @@ import { Layout } from "@/components/layout/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-
+import { usePermission } from '@/hooks/usePermission';
 // Interfaces para os dados
 interface TimelinePost {
   _id: string;
@@ -31,6 +31,7 @@ const Index = () => {
   const { toast } = useToast();
   const [posts, setPosts] = useState<TimelinePost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { hasPermission } = usePermission();
 
   // Função para buscar posts da Timeline
   const fetchTimelinePosts = async () => {
@@ -83,7 +84,6 @@ const Index = () => {
         <div className="mt-8">
           <QuickAccess />
         </div>
-        
         {/* Conteúdo principal: Atividades e Calendário */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mt-8">
           {/* Atividades Recentes (com mais espaço) */}
