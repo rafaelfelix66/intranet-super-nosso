@@ -5,7 +5,16 @@ const Role = mongoose.model('Role', require('./Role').schema);
 
 const UserSchema = new mongoose.Schema({
   nome: String,
-  email: { type: String, unique: true, required: true },
+  cpf: { 
+    type: String, 
+    unique: true, 
+    required: true, 
+    index: true 
+  },
+  email: { 
+    type: String, 
+    unique: true 
+  },
   password: String,
   cargo: String,
   departamento: String,
@@ -13,22 +22,84 @@ const UserSchema = new mongoose.Schema({
   dataCriacao: { type: Date, default: Date.now },
   ultimoAcesso: Date,
   roles: [String],
-  permissoes: [String]
+  permissoes: [String],
+  ativo: { type: Boolean, default: true },
+  ultimaSincronizacao: { type: Date, default: null }
 });
 
 // Hash de senha antes de salvar
 UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
+  if (!this.isModified('password')) {
+   // console.log('Password não modificado, pulando hash');
+    return next();
+  }
+  
+  // Verificar se a senha já está em formato de hash
+  if (this.password.startsWith('$2')) {
+   // console.log('ALERTA: A senha já parece estar em formato de hash. Isso pode causar problemas!');
+   // console.log('Password atual:', this.password.substring(0, 10) + '...');
+  } else {
+   // console.log('Password em formato correto (texto plano):', this.password.length < 20 ? this.password : '(senha longa)');
+  }
+  
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+   // console.log('Hash aplicado com sucesso:', this.password.substring(0, 10) + '...');
+    next();
+  } catch (error) {
+    console.error('Erro no hash de senha:', error);
+    next(error);
+  }
 });
-
 // Método para comparar senha
 UserSchema.methods.comparePassword = async function(candidatePassword) {
-  return await bcrypt.compare(candidatePassword, this.password);
+  try {
+    // Log da senha armazenada no formato completo para debug
+    //console.log('Debug comparePassword:');
+    //console.log('- Senha armazenada hash completa:', this.password);
+    //console.log('- Senha fornecida:', candidatePassword);
+    //console.log('- Formato da senha armazenada:', {
+    //  startsWith$2: this.password.startsWith('$2'),
+    //  startsWith$2a: this.password.startsWith('$2a'),
+    //  startsWith$2b: this.password.startsWith('$2b'),
+    //  length: this.password.length
+    //});
+    
+    // Verificar versão do bcrypt em uso
+    const bcrypt = require('bcryptjs');
+    //console.log('- Versão bcryptjs:', require('bcryptjs/package.json').version);
+    
+    // Testar uma comparação conhecida
+    const testHash = '$2a$10$abcdefghijklmnopqrstuuVwxyz0123456789ABCDEFGHIJ0123'; // Hash de teste
+    const testResult = await bcrypt.compare('test', testHash);
+    //console.log('- Teste de comparação bcrypt:', {
+    //  testPassword: 'test',
+    //  testHash: testHash.substring(0, 10) + '...',
+    //  result: testResult
+    //});
+    
+    // Fazer várias tentativas com configurações diferentes
+    // 1. Comparação direta padrão
+    const standardResult = await bcrypt.compare(candidatePassword, this.password);
+    //console.log('- Resultado comparação padrão:', standardResult);
+    
+    // 2. Tentar criar um novo hash e comparar
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(candidatePassword, salt);
+    //console.log('- Novo hash gerado para comparação:', newHash.substring(0, 10) + '...');
+    
+    // 3. Verificar o hash gerado com a mesma senha
+    const verificationResult = await bcrypt.compare(candidatePassword, newHash);
+    //console.log('- Verificação do novo hash:', verificationResult);
+    
+    // Retornar o resultado da comparação padrão
+    return standardResult;
+  } catch (error) {
+    //console.error('Erro detalhado na verificação de senha:', error);
+    return false;
+  }
 };
-
 // Método para verificar permissões
 UserSchema.methods.hasPermission = function(permission) {
   return this.permissions.includes(permission);
@@ -52,6 +123,16 @@ const PostSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed, // Para armazenar dados de evento (título, data, local)
     default: null
   },
+  departamentoVisibilidade: {
+  type: [String],
+  default: ['TODOS'],
+  validate: {
+    validator: function(v) {
+      return Array.isArray(v);
+    },
+    message: props => `${props.value} não é um array válido!`
+  }
+},
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   comments: [{
     text: String,

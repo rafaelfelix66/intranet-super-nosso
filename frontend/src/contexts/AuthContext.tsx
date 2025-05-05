@@ -1,8 +1,6 @@
-// src/contexts/AuthContext.tsx - Versão atualizada com as novas implementações
-
+// src/contexts/AuthContext.tsx (modificado)
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginUser, registerUser, getUserData, logoutUser, isAuthenticated } from '../auth';
 import { useToast } from "@/hooks/use-toast";
 import { activitiesService } from '@/services/activitiesService';
 import { calendarService } from '@/services/calendarService';
@@ -11,6 +9,7 @@ import { api } from '@/lib/api';
 interface User {
   id: string;
   name: string;
+  cpf: string;  // Adicionado CPF
   email: string;
   department?: string;
   avatar?: string;
@@ -22,8 +21,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, cargo?: string, departamento?: string) => Promise<void>;
+  login: (cpf: string, password: string) => Promise<void>;  // Modificado para CPF
+  register: (cpf: string, password: string) => Promise<void>;  // Modificado para apenas CPF e senha
   logout: () => void;
 }
 
@@ -63,11 +62,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const userData = {
               id: result.data._id,
               name: result.data.nome,
+              cpf: result.data.cpf, // Adicionado CPF
               email: result.data.email,
               department: result.data.departamento,
               avatar: result.data.avatar,
-			  roles: result.data.roles,
-			  permissions: result.data.permissions
+              roles: result.data.roles,
+              permissions: result.data.permissions
             };
             
             setUser(userData);
@@ -98,60 +98,61 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loadUser();
   }, []);
 
- const login = async (email: string, password: string) => {
+  const login = async (cpf: string, password: string) => {
   setIsLoading(true);
   try {
-    const result = await loginUser(email, password);
-    if (result.success) {
-      // Adaptar o formato de dados do backend para o formato esperado pelo frontend
-      const userData = {
-        id: result.data.usuario.id,
-        name: result.data.usuario.nome,
-        email: result.data.usuario.email,
-        department: result.data.usuario.departamento,
-        avatar: result.data.usuario.avatar,
-        roles: result.data.usuario.roles || [],
-        permissions: result.data.usuario.permissions || []
-      };
-      
-      // Buscar permissões detalhadas (adicional)
-      try {
-        const userWithPermissions = await api.get(`/auth/user-permissions`);
-        console.log('Permissões obtidas:', userWithPermissions);
-        if (userWithPermissions) {
-          userData.roles = userWithPermissions.roles || userData.roles;
-          userData.permissions = userWithPermissions.permissions || userData.permissions;
-        }
-      } catch (permissionError) {
-        console.error('Erro ao buscar permissões detalhadas:', permissionError);
-        // Continuar com os dados básicos em caso de erro
-        // Se necessário, atribuir permissões mínimas para funcionar
-        if (!userData.permissions || userData.permissions.length === 0) {
-          userData.permissions = ['timeline:view', 'knowledge:view', 'files:view'];
-        }
-      }
-      
-      console.log('Dados do usuário após login:', userData);
-      
-      setUser(userData);
-      
-      // Armazenar o ID do usuário no localStorage
-      if (result.data.usuario.id) {
-        localStorage.setItem('userId', result.data.usuario.id);
-        
-        // Inicializar serviços após login bem-sucedido
-        initializeServices(result.data.usuario.id);
-      }
-      
-      toast({
-        title: "Login bem-sucedido",
-        description: `Bem-vindo, ${result.data.usuario.nome}!`,
-      });
-      
-      navigate('/');
-    } else {
-      throw new Error(result.message);
+    // Remover formatação do CPF
+    const cpfLimpo = cpf.replace(/\D/g, '');
+    
+    if (cpfLimpo.length !== 11) {
+      throw new Error("CPF inválido. Informe um CPF com 11 dígitos.");
     }
+    
+    // Garantir que estamos enviando os dados corretos
+    const payload = {
+      cpf: cpfLimpo,
+      senha: password // Usando 'senha' como esperado pelo backend
+    };
+    
+    //console.log('Enviando dados de login:', { cpf: payload.cpf, senha: '******' });
+    
+    // Fazer a requisição diretamente usando axios ou fetch
+    const response = await fetch(`${window.location.origin}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      throw new Error('Falha na autenticação. Verifique suas credenciais.');
+    }
+    
+    const result = await response.json();
+    
+    // Adaptar o formato de dados do backend para o formato esperado pelo frontend
+    const userData = {
+      id: result.usuario.id,
+      name: result.usuario.nome,
+      cpf: result.usuario.cpf, // Adicionado CPF
+      email: result.usuario.email,
+      department: result.usuario.departamento,
+      avatar: result.usuario.avatar,
+      roles: result.usuario.roles || [],
+      permissions: result.usuario.permissions || []
+    };
+    
+    localStorage.setItem('token', result.token);
+    localStorage.setItem('userId', result.usuario.id);
+    setUser(userData);
+    
+    toast({
+      title: "Login bem-sucedido",
+      description: `Bem-vindo, ${result.usuario.nome}!`,
+    });
+    
+    navigate('/');
   } catch (error) {
     console.error('Erro no login:', error);
     
@@ -166,20 +167,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(false);
   }
 };
-
-  const register = async (name: string, email: string, password: string, cargo: string = '', departamento: string = '') => {
+  // Função de registro simplificada para CPF e senha
+  const register = async (cpf: string, password: string) => {
     setIsLoading(true);
     try {
-      const result = await registerUser(name, email, password, cargo, departamento);
+      const result = await registerUser(cpf, password);
       if (result.success) {
-        // Se o backend retornar informações do usuário, podemos usá-las
         if (result.data.usuario) {
           const userData = {
             id: result.data.usuario.id,
-            name: result.data.usuario.nome || name,
-            email: result.data.usuario.email || email,
-            department: result.data.usuario.departamento || departamento,
-            avatar: result.data.usuario.avatar
+            name: result.data.usuario.nome,
+            cpf: result.data.usuario.cpf,
+            email: result.data.usuario.email,
+            department: result.data.usuario.departamento,
+            avatar: result.data.usuario.avatar,
+            roles: result.data.usuario.roles || [],
+            permissions: result.data.usuario.permissions || []
           };
           
           setUser(userData);
@@ -194,14 +197,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           
           toast({
             title: "Registro bem-sucedido",
-            description: `Bem-vindo, ${name}!`,
+            description: `Bem-vindo, ${userData.name}!`,
           });
         } else {
-          // Se o backend não retornar info do usuário, precisamos fazer uma requisição getUserData
-          // ou navegar para o login para que o usuário faça login
           toast({
             title: "Registro realizado",
-            description: "Por favor, faça login com suas novas credenciais.",
+            description: "Por favor, faça login com suas credenciais.",
           });
           
           navigate('/login');
@@ -227,13 +228,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Função para verificar autenticação
+  const isAuthenticated = () => {
+    return !!localStorage.getItem('token');
+  };
+
+  // Função de logout
   const logout = () => {
-    logoutUser();
-    setUser(null);
-    
-    // Limpar dados específicos do usuário
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
+    setUser(null);
     
     toast({
       title: "Logout realizado",
@@ -241,6 +245,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     
     navigate('/login');
+  };
+
+  // Função auxiliar para obter dados do usuário
+  const getUserData = async () => {
+    try {
+      const response = await api.get('/auth/user');
+      return { success: true, data: response };
+    } catch (error) {
+      console.error('Erro ao obter dados do usuário:', error);
+      return { success: false, error };
+    }
+  };
+
+  // Função auxiliar para login
+  const loginUser = async (cpf: string, password: string) => {
+    try {
+      const response = await api.post('/auth/login', { cpf, senha: password });
+      
+      if (response && response.token) {
+        localStorage.setItem('token', response.token);
+        return { success: true, data: response };
+      }
+      
+      return { success: false, message: 'Resposta inválida do servidor' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao fazer login';
+      return { success: false, message };
+    }
+  };
+
+  // Função auxiliar para registro
+  const registerUser = async (cpf: string, password: string) => {
+    try {
+      const response = await api.post('/auth/register', { cpf, senha: password });
+      
+      if (response && response.token) {
+        localStorage.setItem('token', response.token);
+        return { success: true, data: response };
+      }
+      
+      return { success: false, message: 'Resposta inválida do servidor' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao registrar';
+      return { success: false, message };
+    }
   };
 
   return (
