@@ -35,6 +35,10 @@ services:
         condition: service_healthy
     env_file:
       - .env  # Carrega variáveis do .env
+    environment:
+      - LLM_SERVER_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - intranet-network  
     restart: always
@@ -56,8 +60,8 @@ services:
     restart: always
 networks:
   intranet-network:
-    driver: bridge    
-
+    driver: bridge
+  
 volumes:
   mongodb_data:
   uploads_data:
