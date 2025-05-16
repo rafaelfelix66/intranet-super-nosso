@@ -12,11 +12,13 @@ import {
   Settings, 
   LogOut,
   LayoutDashboard,
-  Shield
+  Shield,
+  BarChart 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermission } from "@/hooks/usePermission";
@@ -169,13 +171,7 @@ export function Sidebar() {
             active={getActivePath("/arquivos")} 
             isOpen={isOpen}
           />
-          <SidebarItem 
-            icon={Image} 
-            to="/timeline" 
-            label="Timeline" 
-            active={getActivePath("/timeline")} 
-            isOpen={isOpen}
-          />
+		  {hasPermission('roles:manage') && (
           <SidebarItem 
             icon={MessageSquare} 
             to="/chat" 
@@ -183,6 +179,7 @@ export function Sidebar() {
             active={getActivePath("/chat")} 
             isOpen={isOpen}
           />
+		  )}
           <SidebarItem 
             icon={HelpCircle} 
             to="/base-conhecimento" 
@@ -208,7 +205,16 @@ export function Sidebar() {
             isOpen={isOpen}
           />
 		  )}
-          <SidebarItem 
+		  {hasPermission('admin:dashboard') && (
+		  <SidebarItem 
+			icon={BarChart} 
+			to="/admin/engagement" 
+			label="Dashboard de Engajamento" 
+			active={getActivePath("/admin/engagement")} 
+			isOpen={isOpen}
+		  />
+		  )}
+		  <SidebarItem 
             icon={Settings} 
             to="/configuracoes" 
             label="Configurações" 
@@ -225,12 +231,7 @@ export function Sidebar() {
             )}
             onClick={goToSettings}  
           >
-            <Avatar className="h-10 w-10">
-              <AvatarImage src="" />
-              <AvatarFallback className="bg-white text-[#e60909]">
-                {user?.name?.substring(0, 2).toUpperCase() || "SN"}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar size="lg" />
             {isOpen && (
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate text-white">{user?.name || "Funcionário"}</p>

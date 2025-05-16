@@ -9,6 +9,8 @@ const socketIo = require('socket.io');
 require('dotenv').config();
 const fs = require('fs');
 
+const { startBackupScheduler } = require('./jobs/backupScheduler');
+
 
 // Importar modelos
 const { User, File, Message, Chat, Folder } = require('./models');
@@ -221,8 +223,9 @@ app.use('/uploads', (req, res, next) => {
 // Configuração para servir arquivos estáticos (após os middlewares)
 app.use('/uploads/timeline', express.static(path.join(__dirname, 'uploads/timeline')));
 app.use('/uploads/banners', express.static(path.join(__dirname, 'uploads/banners')));
+app.use('/uploads/avatars', express.static(path.join(__dirname, 'uploads/avatars')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
+app.use('/uploads/folders', express.static(path.join(__dirname, 'uploads/folders')));
 // Rota de diagnóstico para verificar arquivos
 app.get('/api/check-file', (req, res) => {
   const filePath = req.query.path;
@@ -378,13 +381,30 @@ app.options('/api/files/upload', cors(corsOptions));
 
 // Rotas
 const llmRoutes = require('./routes/llm');
+const engagementRoutes = require('./routes/engagement');
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/timeline', require('./routes/timeline'));
 app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/banners', require('./routes/banners'));
+app.use('/api/usuarios', require('./routes/usuarios'));
+app.use('/api/admin/engagement', require('./routes/adminEngagement'));
+app.use('/api/supercoins', require('./routes/supercoins'));
 app.use('/api/llm', llmRoutes);
+app.use('/api/engagement', engagementRoutes);
+
+
+// Adicionar job scheduler para recarga mensal
+const { monthlyRecharge } = require('./controllers/superCoinController');
+const cron = require('node-cron');
+
+// Executar todos os dias à meia-noite para verificar recarga
+cron.schedule('0 0 * * *', () => {
+  console.log('Verificando recarga mensal de Super Coins...');
+  monthlyRecharge();
+});
+
 
 // Rotas de autenticação
 app.post('/api/auth/register', async (req, res) => {
@@ -625,6 +645,12 @@ app.put('/api/files/:itemType/:itemId/public', verificarToken, async (req, res) 
     res.status(500).send('Erro no servidor');
   }
 });
+
+// Iniciar agendador de backup de usuários
+if (process.env.NODE_ENV !== 'test') {
+  startBackupScheduler();
+}
+
 
 // Middleware para autenticação de socket
 io.use((socket, next) => {

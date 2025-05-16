@@ -10,10 +10,11 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PermissionManagement } from '@/components/admin/PermissionManagement';
 import { Navigate } from "react-router-dom";
 import { PermissionGuard } from '@/components/auth/PermissionGuard'; // Ajuste o caminho conforme necessário
-
-import Index from "./pages/Index";
+import Home from "./pages/Home";
+import EngagementDashboard from "./pages/EngagementDashboard";
+//import Index from "./pages/Index";
 import FileStorage from "./pages/FileStorage";
-import Timeline from "./pages/Timeline";
+//import Timeline from "./pages/Timeline";
 import Chat from "./pages/Chat";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import Settings from "./pages/Settings";
@@ -97,10 +98,10 @@ const App = () => {
               {/* Rota principal (requer apenas autenticação) */}
               <Route 
                 path="/" 
-                element={
-                  <PrivateRoute>
-                    <Index />
-                  </PrivateRoute>
+               element={
+               <PrivateRoute requiredPermission="timeline:view">
+                 <Home />
+               </PrivateRoute>
                 } 
               />
               
@@ -116,11 +117,7 @@ const App = () => {
               
               <Route 
                 path="/timeline" 
-                element={
-                  <PrivateRoute requiredPermission="timeline:view">
-                    <Timeline />
-                  </PrivateRoute>
-                } 
+                element={<Navigate to="/" replace />} 
               />
               
               <Route 
@@ -183,6 +180,14 @@ const App = () => {
 				  element={
 					<PrivateRoute requiredPermission="roles:manage">
 					  <PermissionManagement />
+					</PrivateRoute>
+				  } 
+				/>
+			  <Route 
+				  path="/admin/engagement" 
+				  element={
+					<PrivateRoute requiredPermission="admin:dashboard">
+					  <EngagementDashboard />
 					</PrivateRoute>
 				  } 
 				/>
