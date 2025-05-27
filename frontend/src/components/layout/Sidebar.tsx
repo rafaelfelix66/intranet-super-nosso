@@ -13,7 +13,13 @@ import {
   LogOut,
   LayoutDashboard,
   Shield,
-  BarChart 
+  BarChart,
+  Coins,
+  User,
+  Building2,
+  Link2,
+  Briefcase,
+  GraduationCap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -164,6 +170,13 @@ export function Sidebar() {
             active={getActivePath("/")} 
             isOpen={isOpen}
           />
+		  <SidebarItem 
+		    icon={Building2} 
+			to="/institucional" 
+			label="Institucional" 
+			active={getActivePath("/institucional")} 
+			isOpen={isOpen}
+		  />
           <SidebarItem 
             icon={FileText} 
             to="/arquivos" 
@@ -171,15 +184,6 @@ export function Sidebar() {
             active={getActivePath("/arquivos")} 
             isOpen={isOpen}
           />
-		  {hasPermission('roles:manage') && (
-          <SidebarItem 
-            icon={MessageSquare} 
-            to="/chat" 
-            label="ChatBot" 
-            active={getActivePath("/chat")} 
-            isOpen={isOpen}
-          />
-		  )}
           <SidebarItem 
             icon={HelpCircle} 
             to="/base-conhecimento" 
@@ -187,6 +191,22 @@ export function Sidebar() {
             active={getActivePath("/base-conhecimento")} 
             isOpen={isOpen}
           />
+		  <SidebarItem 
+			icon={GraduationCap} 
+			to="/aprendizagem" 
+			label="Treinamentos" 
+			active={getActivePath("/aprendizagem")} 
+			isOpen={isOpen}
+		  />
+		  {hasPermission('roles:manage') && (
+          <SidebarItem 
+            icon={MessageSquare} 
+            to="/chat" 
+            label="Pesquisa" 
+            active={getActivePath("/chat")} 
+            isOpen={isOpen}
+          />
+		  )}		  
           {hasPermission('roles:manage') && (
           <SidebarItem 
             icon={Shield} 
@@ -214,10 +234,35 @@ export function Sidebar() {
 			isOpen={isOpen}
 		  />
 		  )}
+		  {hasPermission('supercoins:manage') && (
 		  <SidebarItem 
-            icon={Settings} 
+			icon={Coins} 
+			to="/admin/supercoins" 
+			label="Super Coins" 
+			active={getActivePath("/admin/supercoins")} 
+			isOpen={isOpen}
+		  />
+		  )}
+		  {hasPermission('roles:manage') && (
+          <SidebarItem 
+            icon={Link2} 
+            to="/links-uteis" 
+            label="Links Úteis" 
+            active={getActivePath("/links-uteis")} 
+            isOpen={isOpen}
+          />
+         )}
+		  <SidebarItem 
+		    icon={Briefcase} 
+		    to="/vagas" 
+		    label="Vagas" 
+		    active={getActivePath("/vagas")} 
+		    isOpen={isOpen}
+		  />		 
+		  <SidebarItem 
+            icon={User} 
             to="/configuracoes" 
-            label="Configurações" 
+            label="Meu Perfil" 
             active={getActivePath("/configuracoes")} 
             isOpen={isOpen}
           />

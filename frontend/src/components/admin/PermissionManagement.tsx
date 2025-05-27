@@ -99,10 +99,13 @@ export function PermissionManagement() {
       permissions: [
         { key: 'timeline:view', description: 'Visualizar posts' },
         { key: 'timeline:create', description: 'Criar publicações' },
+		{ key: 'timeline:like', description: 'Curtir publicações' },
+		{ key: 'timeline:like_comment', description: 'Curtir comentarios' },
         { key: 'timeline:edit_own', description: 'Editar próprias publicações' },
         { key: 'timeline:delete_own', description: 'Excluir próprias publicações' },
         { key: 'timeline:delete_any', description: 'Excluir qualquer publicação' },
         { key: 'timeline:comment', description: 'Adicionar comentários' },
+		{ key: 'timeline:react', description: 'Reagir com emojis às publicações' },
         { key: 'timeline:delete_comment_own', description: 'Excluir próprios comentários' },
         { key: 'timeline:delete_comment_any', description: 'Excluir qualquer comentário' },
       ],
@@ -165,7 +168,72 @@ export function PermissionManagement() {
         { key: 'roles:manage', description: 'Gerenciar papéis e permissões' },
       ],
     },
-  ];
+	{
+      name: 'SuperCoins',
+      key: 'supercoins',
+      permissions: [
+        { key: 'supercoins:send_message', description: 'Enviar mensagem no atributo' },
+        
+      ],
+    },
+	{
+	  name: 'Institucional',
+	  key: 'institutional',
+	  permissions: [
+		{ key: 'institutional:view', description: 'Visualizar áreas institucionais' },
+		{ key: 'institutional:create', description: 'Criar áreas institucionais' },
+		{ key: 'institutional:edit', description: 'Editar áreas institucionais' },
+		{ key: 'institutional:delete', description: 'Excluir áreas institucionais' },
+		{ key: 'institutional:manage', description: 'Gerenciar todas as áreas' },
+	  ],
+	},
+	{
+	  name: 'Links Úteis',
+	  key: 'useful_links',
+	  permissions: [
+		{ key: 'useful_links:view', description: 'Visualizar links úteis' },
+		{ key: 'useful_links:create', description: 'Criar links úteis' },
+		{ key: 'useful_links:edit', description: 'Editar links úteis' },
+		{ key: 'useful_links:delete', description: 'Excluir links úteis' },
+		{ key: 'useful_links:manage', description: 'Gerenciar todos os links úteis' },
+	  ],
+	},
+	{
+	  name: 'Vagas',
+	  key: 'jobs',
+	  permissions: [
+		{ key: 'jobs:view', description: 'Visualizar vagas' },
+		{ key: 'jobs:create', description: 'Criar vagas' },
+		{ key: 'jobs:edit', description: 'Editar vagas' },
+		{ key: 'jobs:delete', description: 'Excluir vagas' },
+		{ key: 'jobs:manage', description: 'Gerenciar todas as vagas' },
+	  ],
+	},
+		{
+	  name: 'Cursos',
+	  key: 'courses',
+	  permissions: [
+		{ key: 'courses:view', description: 'Visualizar cursos disponíveis' },
+		{ key: 'courses:view_all', description: 'Visualizar todos os cursos (incluindo de outros departamentos)' },
+		{ key: 'courses:enroll', description: 'Matricular-se em cursos' },
+		{ key: 'courses:create', description: 'Criar novos cursos' },
+		{ key: 'courses:edit_any', description: 'Editar qualquer curso' },
+		{ key: 'courses:delete_any', description: 'Excluir qualquer curso' },
+		{ key: 'courses:manage_lessons', description: 'Adicionar, editar e excluir aulas' },
+		{ key: 'courses:manage_materials', description: 'Gerenciar materiais das aulas' },
+		{ key: 'courses:view_progress', description: 'Visualizar próprio progresso' },
+		{ key: 'courses:view_all_progress', description: 'Visualizar progresso de todos os usuários' },
+		{ key: 'courses:manage_enrollments', description: 'Gerenciar matrículas de usuários' },
+		{ key: 'courses:view_certificates', description: 'Visualizar certificados emitidos' },
+		{ key: 'courses:issue_certificates', description: 'Emitir certificados de conclusão' },
+		{ key: 'courses:view_analytics', description: 'Visualizar estatísticas e relatórios de cursos' },
+		{ key: 'courses:export_data', description: 'Exportar dados de cursos e progresso' },
+		{ key: 'courses:admin', description: 'Administração completa do sistema de cursos' },
+		{ key: 'courses:manage_categories', description: 'Gerenciar categorias de cursos' },
+		{ key: 'courses:moderate_content', description: 'Moderar conteúdo de cursos' },			
+	  ],
+	},
+];
 
   // Recuperar todos os permissões como lista plana
   const getAllPermissions = (): Permission[] => {

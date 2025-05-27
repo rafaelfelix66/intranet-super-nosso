@@ -26,6 +26,11 @@ import NewArticlePage from "./pages/NewArticlePage";
 import BannerAdmin from "./pages/BannerAdmin";
 import Unauthorized from "./pages/Unauthorized";
 import Chat from "./pages/Chat";
+import SuperCoinsAdmin from "./pages/SuperCoinsAdmin";
+import Institutional from "./pages/Institutional";
+import UsefulLinksPage from "./pages/UsefulLinksPage";
+import JobPositions from "./pages/JobPositions";
+import Learning from "./pages/Learning";
 
 // Update Tailwind CSS variables to include the new red color
 import { useEffect } from "react";
@@ -191,6 +196,47 @@ const App = () => {
 					</PrivateRoute>
 				  } 
 				/>
+			  <Route 
+				  path="/admin/supercoins" 
+				  element={
+					<PrivateRoute requiredPermission="supercoins:manage">
+					  <SuperCoinsAdmin />
+					</PrivateRoute>
+				  } 
+				/>
+			  <Route 
+				  path="/institucional" 
+				  element={
+					<PrivateRoute>
+					  <Institutional />
+					</PrivateRoute>
+				  } 
+				/>
+			  <Route 
+				 path="/links-uteis" 
+				 element={
+				<PrivateRoute requiredPermission="useful_links:view">
+				  <UsefulLinksPage />
+				</PrivateRoute>
+			      } 
+				/>
+		      <Route 
+				  path="/vagas" 
+				  element={
+					<PrivateRoute>
+					  <JobPositions />
+					</PrivateRoute>
+				  } 
+				/>
+			 <Route 
+				 path="/aprendizagem" 
+				 element={
+				<PrivateRoute requiredPermission="courses:view">
+				  <Learning />
+				</PrivateRoute>
+				  }
+			    />	
+				
               
               {/* Rota para página não encontrada */}
               <Route path="*" element={<NotFound />} />
